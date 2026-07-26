@@ -1077,6 +1077,9 @@ class _QrLoginForm extends StatelessWidget {
 /// 形式的 data URI，[Image.network] 无法直接加载，会触发 "Width is zero"
 /// 渲染警告并导致二维码不显示。这里自动识别 data URI 并走 [Image.memory]，
 /// 普通 http(s) URL 仍走 [Image.network]。
+///
+/// 深色模式下，二维码 PNG 的「白」区域通常是透明的，会透出近黑的底层，
+/// 导致手机无法识别。因此在图片下方垫一层纯白背景，确保对比度足够。
 class _QrImage extends StatelessWidget {
   const _QrImage({
     required this.imageUrl,
@@ -1089,6 +1092,19 @@ class _QrImage extends StatelessWidget {
   final double size;
   final Color fallbackColor;
   final Color iconColor;
+
+  /// 包装二维码图片，垫白色背景确保深色模式下可识别。
+  Widget withWhiteBackground(Widget image) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: image,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1114,21 +1130,25 @@ class _QrImage extends StatelessWidget {
     if (data != null) {
       final bytes = data.contentAsBytes();
       if (bytes.isEmpty) return fallback();
-      return Image.memory(
-        bytes,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => fallback(),
+      return withWhiteBackground(
+        Image.memory(
+          bytes,
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => fallback(),
+        ),
       );
     }
 
-    return Image.network(
-      imageUrl,
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => fallback(),
+    return withWhiteBackground(
+      Image.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => fallback(),
+      ),
     );
   }
 }

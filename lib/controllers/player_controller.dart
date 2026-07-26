@@ -52,6 +52,12 @@ class PlayerController extends ChangeNotifier {
       'settings.auto_play_on_device_connected';
   static const _volumeNormalizationEnabledSettingKey =
       'settings.volume_normalization_enabled';
+  static const _queueKey = 'playback.queue';
+  static const _currentSongKey = 'playback.current_song';
+  static const _currentPositionKey = 'playback.current_position';
+  static const _playbackModeKey = 'playback.mode';
+  static const _queueSaveDebounceMs = 500;
+  static const _positionSaveInterval = Duration(seconds: 5);
   static const _listenTimeReportInterval = Duration(minutes: 30);
   static const _listenTimeCheckInterval = Duration(minutes: 1);
   static const _defaultEqualizerLevels = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -174,6 +180,8 @@ class PlayerController extends ChangeNotifier {
   final _random = math.Random();
   Timer? _completionFallbackTimer;
   Timer? _listenTimeTimer;
+  Timer? _queueSaveTimer;
+  Timer? _positionSaveTimer;
   DateTime? _listenTimeStartedAt;
   Duration _pendingListenTime = Duration.zero;
   bool _isReportingListenTime = false;
@@ -299,6 +307,7 @@ class PlayerController extends ChangeNotifier {
       PlaybackMode.shuffle => PlaybackMode.singleLoop,
       PlaybackMode.singleLoop => PlaybackMode.playlistLoop,
     };
+    _saveQueueState();
     notifyListeners();
     return playbackMode;
   }
@@ -332,6 +341,8 @@ class PlayerController extends ChangeNotifier {
     }
     lyrics = const [];
     _lastDesktopLyricIndex = -1;
+    _saveQueueState();
+    _startPositionSaving();
     notifyListeners();
     // 预缓存封面图，避免打开播放页时出现纯色背景闪烁
     _precacheCover(song);
@@ -497,6 +508,7 @@ class PlayerController extends ChangeNotifier {
       queueIndex: currentIndex,
       currentSong: currentSong,
     );
+    _saveQueueState();
     notifyListeners();
     return true;
   }
@@ -1615,6 +1627,8 @@ class PlayerController extends ChangeNotifier {
   @override
   void dispose() {
     _pauseListeningTimeTracker();
+    _stopPositionSaving();
+    _queueSaveTimer?.cancel();
     _autoResumeTimer?.cancel();
     _sleepTimer?.cancel();
     _positionSub.cancel();
@@ -1692,5 +1706,155 @@ class PlayerController extends ChangeNotifier {
         source[((index / math.max(1, count - 1)) * (source.length - 1))
             .round()],
     ];
+  }
+
+  // ===== 播放队列持久化 =====
+
+  /// 保存播放队列状态到本地存储（防抖 500ms）。
+  void _saveQueueState() {
+    _queueSaveTimer?.cancel();
+    _queueSaveTimer = Timer(
+      const Duration(milliseconds: _queueSaveDebounceMs),
+      () => _persistQueueState(),
+    );
+  }
+
+  /// 立即持久化播放队列、当前歌曲和播放模式。
+  Future<void> _persistQueueState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final song = currentSong;
+    if (song != null) {
+      await prefs.setString(_currentSongKey, jsonEncode(song.toCache()));
+      await prefs.setInt(_currentPositionKey, position.inMilliseconds);
+    } else {
+      await prefs.remove(_currentSongKey);
+      await prefs.remove(_currentPositionKey);
+    }
+    await prefs.setString(_queueKey, jsonEncode(queue.map((s) => s.toCache()).toList()));
+    await prefs.setString(_playbackModeKey, playbackMode.name);
+  }
+
+  /// 启动定时保存播放进度（每 5 秒）。
+  void _startPositionSaving() {
+    _positionSaveTimer?.cancel();
+    _positionSaveTimer = Timer.periodic(_positionSaveInterval, (_) {
+      _saveCurrentPosition();
+    });
+  }
+
+  /// 保存当前播放进度。
+  void _saveCurrentPosition() {
+    if (currentSong == null) return;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setInt(_currentPositionKey, position.inMilliseconds);
+    });
+  }
+
+  /// 停止定时保存播放进度。
+  void _stopPositionSaving() {
+    _positionSaveTimer?.cancel();
+    _positionSaveTimer = null;
+  }
+
+  /// 同步保存当前播放状态（用于 dispose 时紧急保存）。
+  void persistCurrentStateSync() {
+    _persistQueueState();
+    _saveCurrentPosition();
+  }
+
+  /// 从本地存储恢复播放队列、当前歌曲和播放进度。
+  Future<void> restoreQueueState() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 恢复播放模式
+    final modeName = prefs.getString(_playbackModeKey);
+    if (modeName != null) {
+      for (final mode in PlaybackMode.values) {
+        if (mode.name == modeName) {
+          playbackMode = mode;
+          break;
+        }
+      }
+    }
+
+    // 恢复播放队列
+    final queueJson = prefs.getString(_queueKey);
+    if (queueJson != null && queueJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(queueJson);
+        if (decoded is List) {
+          final restored = decoded
+              .whereType<Map<String, dynamic>>()
+              .map(Song.fromCache)
+              .where((s) => s.hash.isNotEmpty)
+              .toList();
+          if (restored.isNotEmpty) {
+            queue = restored;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 恢复当前歌曲
+    final songJson = prefs.getString(_currentSongKey);
+    if (songJson != null && songJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(songJson);
+        if (decoded is Map<String, dynamic>) {
+          currentSong = Song.fromCache(decoded);
+        }
+      } catch (_) {}
+    }
+
+    // 恢复播放进度
+    final posMs = prefs.getInt(_currentPositionKey);
+    if (posMs != null && posMs > 0) {
+      position = Duration(milliseconds: posMs);
+    }
+
+    notifyListeners();
+  }
+
+  /// 在恢复队列后加载并准备播放当前歌曲（不自动播放，仅预加载）。
+  Future<void> prepareRestoredSong() async {
+    final song = currentSong;
+    if (song == null) return;
+
+    isPreparing = true;
+    notifyListeners();
+
+    try {
+      String url;
+      final local = downloadController?.localPathFor(song, audioQuality);
+      if (local != null) {
+        url = local;
+      } else if (song.source == SongSource.local) {
+        url = song.id;
+      } else {
+        final playUrl = await _resolvePlayUrl(song);
+        if (playUrl.url.isEmpty) return;
+        url = playUrl.url;
+      }
+
+      await _audioHandler.loadSong(
+        song: song,
+        url: url,
+        queueSongs: queue,
+        queueIndex: currentIndex,
+      );
+
+      // 跳转到保存的进度
+      if (position > Duration.zero) {
+        await _audioHandler.seek(_clampPosition(position));
+      }
+
+      unawaited(loadLyrics(song));
+      _startPositionSaving();
+    } catch (e) {
+      debugPrint('[KA Music] Failed to prepare restored song: $e');
+    } finally {
+      isPreparing = false;
+      notifyListeners();
+    }
   }
 }

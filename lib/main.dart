@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -97,12 +98,23 @@ class _KaMusicAppState extends State<KaMusicApp> with WidgetsBindingObserver {
     _theme = widget.themeController;
     _auth.restore();
     _downloads.initialize();
+    _restorePlaybackState();
+  }
+
+  /// 恢复上次的播放队列和进度。
+  Future<void> _restorePlaybackState() async {
+    await _player.restoreQueueState();
+    if (_player.currentSong != null) {
+      unawaited(_player.prepareRestoredSong());
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _auth.dispose();
+    // 退出前保存播放状态
+    _player.persistCurrentStateSync();
     _player.dispose();
     _downloads.dispose();
     _localMusic.dispose();
