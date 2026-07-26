@@ -106,8 +106,9 @@ class _LoginPageState extends State<LoginPage> {
     final result = await widget.auth.login(mobile, code);
     if (!mounted || result?.requiresUserSelection != true) {
       return;
+    }
+    await _showAccountSelection(result!.accounts, mobile, code, result.message);
   }
-}
 
   Future<void> _showAccountSelection(
     List<MobileLoginAccount> accounts,
