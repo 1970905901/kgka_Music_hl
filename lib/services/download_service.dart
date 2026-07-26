@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../config/app_config.dart';
 import '../models/music_models.dart';
@@ -47,17 +49,23 @@ class DownloadService {
 
   /// 持久下载目录。
   ///
-  /// Android 优先使用系统公共下载目录（/storage/emulated/0/Download），
-  /// 其他平台或获取失败时回退到应用文档目录。
+  /// Android 优先使用系统公共下载目录（/storage/emulated/0/Download/KA Music），
+  /// 需要存储权限；其他平台或获取失败时回退到应用文档目录。
   Future<Directory> downloadDir() async {
     if (Platform.isAndroid) {
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir != null) {
-        final dir = Directory('${downloadsDir.path}/${AppConfig.downloadDirName}');
-        if (!dir.existsSync()) {
-          await dir.create(recursive: true);
+      try {
+        // Android 11+ 需要 MANAGE_EXTERNAL_STORAGE 权限才能写入公共目录
+        // Android 10 及以下需要 WRITE_EXTERNAL_STORAGE
+        final hasPermission = await _requestStoragePermission();
+        if (hasPermission) {
+          final dir = Directory('/storage/emulated/0/Download/${AppConfig.downloadDirName}');
+          if (!dir.existsSync()) {
+            await dir.create(recursive: true);
+          }
+          return dir;
         }
-        return dir;
+      } catch (e) {
+        debugPrint('[KA Music] Failed to access public Download dir: $e');
       }
     }
     final base = await getApplicationDocumentsDirectory();
@@ -66,6 +74,27 @@ class DownloadService {
       await dir.create(recursive: true);
     }
     return dir;
+  }
+
+  /// 请求存储写入权限。
+  Future<bool> _requestStoragePermission() async {
+    if (Platform.isAndroid) {
+      // Android 11+ (API 30+): 需要 MANAGE_EXTERNAL_STORAGE
+      if (await Permission.manageExternalStorage.isGranted) {
+        return true;
+      }
+      // 先尝试请求普通写入权限（Android 10 及以下）
+      if (await Permission.storage.isGranted) {
+        return true;
+      }
+      // 请求 manageExternalStorage（Android 11+）
+      final status = await Permission.manageExternalStorage.request();
+      if (status.isGranted) return true;
+      // 回退请求普通存储权限
+      final storageStatus = await Permission.storage.request();
+      return storageStatus.isGranted;
+    }
+    return true;
   }
 
   /// 临时播放缓存目录。

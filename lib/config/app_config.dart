@@ -23,7 +23,7 @@ class AppConfig {
   // ===== 缓存与下载配置 =====
   /// 数据缓存目录名 / 下载目录名 / 播放缓存目录名
   static const cacheDirName = 'ka_music_cache';
-  static const downloadDirName = 'ka_music_downloads';
+  static const downloadDirName = 'KA Music';
   static const playCacheDirName = 'ka_music_play_cache';
 
   /// 数据缓存 TTL（分级）
