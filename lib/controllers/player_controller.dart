@@ -1725,7 +1725,9 @@ class PlayerController extends ChangeNotifier {
     final song = currentSong;
     if (song != null) {
       await prefs.setString(_currentSongKey, jsonEncode(song.toCache()));
-      await prefs.setInt(_currentPositionKey, position.inMilliseconds);
+      // 直接读取播放器的实时位置
+      final currentPos = audioPlayer.position;
+      await prefs.setInt(_currentPositionKey, currentPos.inMilliseconds);
     } else {
       await prefs.remove(_currentSongKey);
       await prefs.remove(_currentPositionKey);
@@ -1745,8 +1747,10 @@ class PlayerController extends ChangeNotifier {
   /// 保存当前播放进度。
   void _saveCurrentPosition() {
     if (currentSong == null) return;
+    // 直接读取播放器的实时位置，避免使用可能过时的 position 变量
+    final currentPos = audioPlayer.position;
     SharedPreferences.getInstance().then((prefs) {
-      prefs.setInt(_currentPositionKey, position.inMilliseconds);
+      prefs.setInt(_currentPositionKey, currentPos.inMilliseconds);
     });
   }
 
@@ -1820,6 +1824,9 @@ class PlayerController extends ChangeNotifier {
     final song = currentSong;
     if (song == null) return;
 
+    // 在加载前保存恢复的进度（loadSong 会重置 position 为 0）
+    final restoredPosition = position;
+
     isPreparing = true;
     notifyListeners();
 
@@ -1844,8 +1851,8 @@ class PlayerController extends ChangeNotifier {
       );
 
       // 跳转到保存的进度
-      if (position > Duration.zero) {
-        await _audioHandler.seek(_clampPosition(position));
+      if (restoredPosition > Duration.zero) {
+        await _audioHandler.seek(_clampPosition(restoredPosition));
       }
 
       unawaited(loadLyrics(song));

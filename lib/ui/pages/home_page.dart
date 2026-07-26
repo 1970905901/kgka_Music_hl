@@ -1278,52 +1278,10 @@ class _PlaylistRail extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final size = MediaQuery.sizeOf(context);
-    final isLandscape = size.width > size.height;
-    // 推荐歌单网格布局是车机专属，普通横屏用横向列表。
-    final isCarMode = isLandscape && ThemeController.instance.carModeEnabled;
-
-    if (isCarMode) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: _SectionHeader(
-                title: '推荐歌单',
-                action: const SizedBox.shrink(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              itemCount: playlists.length,
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 160,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 14,
-                childAspectRatio: 0.60,
-              ),
-              itemBuilder: (context, index) {
-                final playlist = playlists[index];
-                return _PlaylistCard(
-                  playlist: playlist,
-                  onTap: () => onTap(playlist),
-                );
-              },
-            ),
-          ],
-        ),
-      );
-    }
-
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -1333,22 +1291,24 @@ class _PlaylistRail extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 204,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              scrollDirection: Axis.horizontal,
-              itemCount: playlists.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                final playlist = playlists[index];
-                return _PlaylistCard(
-                  playlist: playlist,
-                  onTap: () => onTap(playlist),
-                  width: 128,
-                );
-              },
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            itemCount: playlists.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 160,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 14,
+              childAspectRatio: 0.60,
             ),
+            itemBuilder: (context, index) {
+              final playlist = playlists[index];
+              return _PlaylistCard(
+                playlist: playlist,
+                onTap: () => onTap(playlist),
+              );
+            },
           ),
         ],
       ),
@@ -1386,66 +1346,50 @@ class _PlaylistCard extends StatelessWidget {
   const _PlaylistCard({
     required this.playlist,
     required this.onTap,
-    this.width,
   });
 
   final PlaylistSummary playlist;
   final VoidCallback onTap;
-  final double? width;
 
   @override
   Widget build(BuildContext context) {
-    Widget content = LayoutBuilder(
+    return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = width ?? constraints.maxWidth;
-        final size = cardWidth.isInfinite ? 128.0 : cardWidth;
+        final size = constraints.maxWidth.isInfinite ? 128.0 : constraints.maxWidth;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Artwork(url: playlist.coverUrl, size: size, borderRadius: 10),
-            const SizedBox(height: 9),
-            SizedBox(
-              height: 42,
-              child: Text(
-                playlist.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  height: 1.16,
-                ),
-              ),
-            ),
-            Text(
-              playlist.subtitle ?? _playCount(playlist.playCount),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (width != null) {
-      return SizedBox(
-        width: width,
-        child: InkWell(
+        return InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
-          child: content,
-        ),
-      );
-    }
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: content,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Artwork(url: playlist.coverUrl, size: size, borderRadius: 10),
+              const SizedBox(height: 9),
+              SizedBox(
+                height: 42,
+                child: Text(
+                  playlist.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.16,
+                  ),
+                ),
+              ),
+              Text(
+                playlist.subtitle ?? _playCount(playlist.playCount),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
