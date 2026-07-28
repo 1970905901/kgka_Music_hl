@@ -1,7 +1,7 @@
 name: kgka_music_hl
 description: "the best music application"
 publish_to: 'none'
-version: 2.4.0
+version: 2.5.0
 
 environment:
   sdk: ^3.11.5
@@ -22,6 +22,7 @@ dependencies:
   file_picker: ^11.0.2
   flutter_lyric: ^3.0.7
   permission_handler: ^11.4.0
+  lpinyin: ^2.0.3
 
 dev_dependencies:
   flutter_test:

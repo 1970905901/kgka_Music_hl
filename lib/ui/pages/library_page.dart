@@ -15,6 +15,7 @@ import 'playlist_detail_page.dart';
 import 'settings_page.dart';
 import 'local_songs_page.dart';
 import '../../controllers/local_music_controller.dart';
+import '../../core/pinyin_utils.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({
@@ -645,7 +646,7 @@ class _PlaylistTabViewState extends State<_PlaylistTabView> {
     switch (_sortMode) {
       case _PlaylistSortMode.byName:
         final sorted = List<PlaylistSummary>.of(playlists);
-        sorted.sort((a, b) => a.title.compareTo(b.title));
+        sorted.sort((a, b) => PinyinUtils.comparePinyin(a.title, b.title));
         return sorted;
       case _PlaylistSortMode.bySongCount:
         final sorted = List<PlaylistSummary>.of(playlists);

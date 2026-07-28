@@ -49,6 +49,81 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  Future<void> _showErrorDialog(String message) async {
+    if (!mounted || message.trim().isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          icon: Icon(
+            Icons.error_outline_rounded,
+            color: colorScheme.error,
+            size: 38,
+          ),
+          title: const Text(
+            '登录失败',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '登录或服务请求失败，详细错误信息如下：',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.maxFinite,
+                constraints: const BoxConstraints(maxHeight: 220),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.errorContainer.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.error.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    message,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            OutlinedButton.icon(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: message));
+                Toast.success('已复制错误信息到剪贴板');
+              },
+              icon: const Icon(Icons.copy_rounded, size: 16),
+              label: const Text('复制错误信息'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _sendCode() async {
     if (_codeSeconds > 0) return;
 
@@ -60,12 +135,19 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     setState(() => _localError = null);
-    await widget.auth.sendCode(mobile);
-    if (!mounted) return;
+    try {
+      await widget.auth.sendCode(mobile);
+      if (!mounted) return;
 
-    if (widget.auth.errorMessage == null) {
-      _startCodeCountdown();
-      _codeFocus.requestFocus();
+      if (widget.auth.errorMessage != null && widget.auth.errorMessage!.isNotEmpty) {
+        _showErrorDialog(widget.auth.errorMessage!);
+      } else {
+        _startCodeCountdown();
+        _codeFocus.requestFocus();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorDialog(e.toString());
     }
   }
 
@@ -103,11 +185,22 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     setState(() => _localError = null);
-    final result = await widget.auth.login(mobile, code);
-    if (!mounted || result?.requiresUserSelection != true) {
-      return;
+    try {
+      final result = await widget.auth.login(mobile, code);
+      if (!mounted) return;
+
+      if (widget.auth.errorMessage != null && widget.auth.errorMessage!.isNotEmpty) {
+        _showErrorDialog(widget.auth.errorMessage!);
+        return;
+      }
+
+      if (result?.requiresUserSelection == true) {
+        await _showAccountSelection(result!.accounts, mobile, code, result.message);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorDialog(e.toString());
     }
-    await _showAccountSelection(result!.accounts, mobile, code, result.message);
   }
 
   Future<void> _showAccountSelection(
@@ -130,7 +223,16 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted || selected == null) {
       return;
     }
-    await widget.auth.login(mobile, code, userId: selected.userId);
+    try {
+      await widget.auth.login(mobile, code, userId: selected.userId);
+      if (!mounted) return;
+      if (widget.auth.errorMessage != null && widget.auth.errorMessage!.isNotEmpty) {
+        _showErrorDialog(widget.auth.errorMessage!);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorDialog(e.toString());
+    }
   }
 
   Future<void> _editApiBaseUrl(BuildContext context) async {
@@ -223,13 +325,14 @@ class _LoginPageState extends State<LoginPage> {
         _qrStatusText = '请使用酷狗音乐App扫码';
       });
       _startQrPolling(qr.key);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _qrLoading = false;
         _qrStatusText = '获取二维码失败，点击重试';
         _qrExpired = true;
       });
+      _showErrorDialog('获取二维码失败：$e');
     }
   }
 
@@ -247,7 +350,16 @@ class _LoginPageState extends State<LoginPage> {
             nickname: result.nickname,
             avatarUrl: result.avatar,
           );
-          await widget.auth.loginWithSession(session);
+          try {
+            await widget.auth.loginWithSession(session);
+            if (!mounted) return;
+            if (widget.auth.errorMessage != null && widget.auth.errorMessage!.isNotEmpty) {
+              _showErrorDialog(widget.auth.errorMessage!);
+            }
+          } catch (e) {
+            if (!mounted) return;
+            _showErrorDialog('扫码登录处理失败：$e');
+          }
           return;
         }
         if (result.isExpired) {
