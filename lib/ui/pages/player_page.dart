@@ -23,6 +23,7 @@ import '../widgets/toast.dart';
 import 'artist_detail_page.dart';
 import 'comment_page.dart';
 import 'desktop_lyrics_settings_page.dart';
+import 'rhythm_game/rhythm_game_page.dart';
 
 class PlayerPage extends StatefulWidget {
   const PlayerPage({
@@ -2411,35 +2412,63 @@ class _CommentEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 其他平台歌曲不支持评论
-    if (song.source != SongSource.kugou) {
-      return const SizedBox.shrink();
-    }
     return Align(
       alignment: Alignment.centerLeft,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () {
-            final mixsongid = song.albumAudioId ?? song.id;
-            if (mixsongid.isEmpty) return;
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    CommentPage(api: player.api, mixsongid: mixsongid),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 评论按钮（在左侧）
+          if (song.source == SongSource.kugou)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  final mixsongid = song.albumAudioId ?? song.id;
+                  if (mixsongid.isEmpty) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          CommentPage(api: player.api, mixsongid: mixsongid),
+                    ),
+                  );
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Icon(
+                    Icons.comment_outlined,
+                    size: 20,
+                    color: Colors.white54,
+                  ),
+                ),
               ),
-            );
-          },
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Icon(
-              Icons.comment_outlined,
-              size: 20,
-              color: Colors.white54,
+            ),
+
+          if (song.source == SongSource.kugou) const SizedBox(width: 4),
+
+          // 音乐游戏按钮（在评论按钮右侧）
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => RhythmGamePage(player: player),
+                  ),
+                );
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Icon(
+                  Icons.sports_esports_outlined,
+                  size: 22,
+                  color: Colors.white54,
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

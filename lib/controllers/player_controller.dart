@@ -798,6 +798,18 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
+  Future<void> play() async {
+    if (!audioPlayer.playing) {
+      await togglePlay();
+    }
+  }
+
+  Future<void> pause() async {
+    if (audioPlayer.playing) {
+      await togglePlay();
+    }
+  }
+
   void previewSeek(Duration position) {
     _isScrubbing = true;
     _isSeeking = true;
