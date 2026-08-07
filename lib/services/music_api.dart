@@ -205,6 +205,32 @@ class MusicApi {
     return DailyRecommend.fromJson(json);
   }
 
+  /// 新歌速递。
+  Future<List<Song>> topSongs({int type = 21608, int page = 1}) async {
+    final raw = await _client.get('/top/song', {'type': type, 'page': page});
+    final json = asMap(raw);
+    final items = raw is List
+        ? raw
+        : asList(json['data'] ?? json['song_list'] ?? _firstListValue(json));
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(Song.fromTopSong)
+        .where((song) => song.hash.isNotEmpty)
+        .toList();
+  }
+
+  /// 新碟上架。
+  Future<List<TopAlbumItem>> topAlbums({int page = 1, int pageSize = 30}) async {
+    final raw = await _client.get('/top/album', {'page': page, 'pagesize': pageSize});
+    final json = asMap(raw);
+    final data = asMap(json['data']);
+    final items = asList(data['chn'] ?? json['chn']);
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(TopAlbumItem.fromJson)
+        .where((album) => album.id.isNotEmpty)
+        .toList();
+  }
   Future<List<AlbumShopItem>> albumShop({int page = 1, int pageSize = 30}) async {
     final json = asMap(
       await _client.get('/album/shop', {'page': page, 'pagesize': pageSize}),
@@ -275,6 +301,22 @@ class MusicApi {
     };
   }
 
+  /// 获取当前登录用户 VIP 信息。
+  Future<UserVipInfo> vipDetail() async {
+    final json = asMap(await _client.get('/user/vip/detail'));
+    return UserVipInfo.fromJson(json);
+  }
+
+  /// 获取服务端继续播放信息。
+  Future<LatestListenResult> latestListenSongs({int pageSize = 30}) async {
+    final json = asMap(
+      await _client.post(
+        '/lastest/songs/listen',
+        query: {'pagesize': pageSize},
+      ),
+    );
+    return LatestListenResult.fromJson(asMap(json['data']));
+  }
   Future<VipReceiveHistory> vipReceiveHistory() async {
     final json = asMap(await _client.get('/youth/month/vip/record'));
     return VipReceiveHistory.fromJson(json);
@@ -301,6 +343,34 @@ class MusicApi {
       }),
     );
     return AppVersionInfo.fromJson(json);
+  }
+
+  /// 获取歌手专辑列表。
+  Future<List<ArtistAlbum>> artistAlbums(
+    String id, {
+    int page = 1,
+    int pageSize = 30,
+  }) async {
+    final raw = await _client.get('/artist/albums', {
+      'id': id,
+      'page': page,
+      'pagesize': pageSize,
+      'sort': 'new',
+    });
+    final json = asMap(raw);
+    final items = raw is List
+        ? raw
+        : asList(
+            json['data'] ??
+                json['albums'] ??
+                json['list'] ??
+                _firstListValue(json),
+          );
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(ArtistAlbum.fromJson)
+        .where((album) => album.id.isNotEmpty)
+        .toList();
   }
 
   Future<ArtistDetail> artistDetail(String id) async {
@@ -406,6 +476,22 @@ class MusicApi {
     return MusicCommentResponse.fromJson(json);
   }
 
+  /// 获取相似歌单。
+  Future<List<PlaylistSummary>> similarPlaylists(String id) async {
+    final raw = await _client.get('/playlist/similar', {'ids': id});
+    final json = asMap(raw);
+    final groups = asList(json['data'])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    final items = groups.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : asList(groups.first['collection_list'])
+            .whereType<Map<String, dynamic>>();
+    return items
+        .map(PlaylistSummary.fromSimilar)
+        .where((playlist) => playlist.id.isNotEmpty)
+        .toList();
+  }
   Future<PlaylistSummary> playlistInfo(String id) async {
     final json = asMap(await _client.get('/playlist/detail', {'ids': id}));
     return PlaylistSummary.fromDetail(json);
@@ -472,6 +558,18 @@ class MusicApi {
     );
   }
 
+  /// 获取歌曲高潮片段时间信息，无高潮时返回 null。
+  Future<SongClimax?> songClimax(String hash) async {
+    final raw = await _client.get('/song/climax', {'hash': hash});
+    final json = asMap(raw);
+    for (final item in asList(json['data'])) {
+      if (item is Map<String, dynamic>) {
+        final climax = SongClimax.fromJson(item);
+        if (climax.isValid) return climax;
+      }
+    }
+    return null;
+  }
   Future<PlayUrl> songUrl(
     Song song, {
     AudioQuality quality = AudioQuality.standard,
@@ -519,6 +617,19 @@ class MusicApi {
     final url = asString(json['url']) ?? '';
     final hash = asString(json['hash']) ?? song.hash;
     return PlayUrl(url: url, hash: hash);
+  }
+
+  /// 解析网易云 / QQ 音乐歌单分享链接，返回歌单名和歌曲名称列表。
+  Future<ExternalPlaylistParseResult> parseExternalPlaylist(
+    String sourceText,
+  ) async {
+    final json = asMap(
+      await _client.post(
+        '/playlist/external/parse',
+        body: {'sourceText': sourceText},
+      ),
+    );
+    return ExternalPlaylistParseResult.fromJson(json);
   }
 
   Future<void> createPlaylist(String name, {bool private = false}) async {

@@ -210,6 +210,7 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
                                 final isPlaying = isCurrent && widget.player.isPlaying;
 
                                 return ListTile(
+                                  key: ValueKey(song.id),
                                   leading: SizedBox(
                                     width: 44,
                                     height: 44,

@@ -107,6 +107,7 @@ class PlayerController extends ChangeNotifier {
         _setPositionBase(value, playing: isPlaying);
       }
       _maybeCompleteFromPosition(value);
+      _maybeStopClimaxPreview(value);
       _maybeSyncDesktopLyricFromPosition();
       notifyListeners();
     });
@@ -178,6 +179,11 @@ class PlayerController extends ChangeNotifier {
   Set<AudioDevice>? _previousDevices;
   final Stopwatch _positionClock = Stopwatch();
   final _random = math.Random();
+  /// 高潮试听结束时间（播放到该时间自动暂停）。
+  Duration? _climaxEndTime;
+
+  /// 当前歌曲的高潮片段时间（用于进度条标记），可能为 null。
+  SongClimax? climax;
   Timer? _completionFallbackTimer;
   Timer? _listenTimeTimer;
   Timer? _queueSaveTimer;
@@ -328,6 +334,8 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> playSong(Song song, {List<Song>? queue}) async {
+    _climaxEndTime = null;
+    climax = null;
     _completionFallbackTimer?.cancel();
     _completedSongHash = null;
     isPreparing = true;
@@ -347,6 +355,7 @@ class PlayerController extends ChangeNotifier {
     // 预缓存封面图，避免打开播放页时出现纯色背景闪烁
     _precacheCover(song);
     unawaited(_syncDesktopLyricsVisibility());
+    unawaited(_loadClimax(song));
 
     try {
       String url;
@@ -795,6 +804,46 @@ class PlayerController extends ChangeNotifier {
         await _audioHandler.seek(Duration.zero);
       }
       await _audioHandler.play();
+    }
+  }
+
+  /// 试听当前歌曲的高潮片段：定位到高潮开始并播放，到高潮结束自动暂停。
+  /// 返回是否成功（无高潮片段或失败时返回 false）。
+  Future<bool> playClimaxPreview() async {
+    final song = currentSong;
+    if (song == null) return false;
+    try {
+      final climax = await _api.songClimax(song.hash);
+      if (climax == null) return false;
+      this.climax = climax;
+      _climaxEndTime = climax.endTime;
+      await seek(climax.startTime);
+      await play();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 高潮试听播放到结束时间时自动暂停。
+  void _maybeStopClimaxPreview(Duration value) {
+    final end = _climaxEndTime;
+    if (end == null || value < end) return;
+    _climaxEndTime = null;
+    unawaited(pause());
+  }
+
+  /// 异步获取当前歌曲高潮时间，用于进度条标记（失败静默）。
+  Future<void> _loadClimax(Song song) async {
+    try {
+      final result = await _api.songClimax(song.hash);
+      if (currentSong?.hash != song.hash) return;
+      climax = result;
+      notifyListeners();
+    } catch (_) {
+      if (currentSong?.hash == song.hash) {
+        climax = null;
+      }
     }
   }
 
@@ -1778,6 +1827,15 @@ class PlayerController extends ChangeNotifier {
     _saveCurrentPosition();
   }
 
+  /// 用服务端「继续播放」列表填充队列并定位到第一首（不自动播放）。
+  void restoreFromServerQueue(List<Song> songs) {
+    if (songs.isEmpty || currentSong != null) return;
+    queue = List<Song>.of(songs);
+    currentSong = songs.first;
+    position = Duration.zero;
+    notifyListeners();
+  }
+
   /// 从本地存储恢复播放队列、当前歌曲和播放进度。
   Future<void> restoreQueueState() async {
     final prefs = await SharedPreferences.getInstance();
@@ -1835,6 +1893,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> prepareRestoredSong() async {
     final song = currentSong;
     if (song == null) return;
+    climax = null;
+    unawaited(_loadClimax(song));
 
     // 在加载前保存恢复的进度（loadSong 会重置 position 为 0）
     final restoredPosition = position;

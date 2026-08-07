@@ -106,6 +106,16 @@ class _KaMusicAppState extends State<KaMusicApp> with WidgetsBindingObserver {
     await _player.restoreQueueState();
     if (_player.currentSong != null) {
       unawaited(_player.prepareRestoredSong());
+      return;
+    }
+    // 本地无播放记录时，尝试用服务端「继续播放」信息恢复。
+    try {
+      final latest = await _api.latestListenSongs();
+      if (_player.currentSong != null || latest.songs.isEmpty) return;
+      _player.restoreFromServerQueue(latest.songs);
+      unawaited(_player.prepareRestoredSong());
+    } catch (_) {
+      // 服务端恢复失败静默忽略，保持空状态。
     }
   }
 

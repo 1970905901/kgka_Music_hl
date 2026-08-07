@@ -9,6 +9,7 @@ import '../widgets/mini_player.dart';
 import '../widgets/now_playing_badge.dart';
 import '../widgets/song_action_sheets.dart';
 import '../adaptive_layout.dart';
+import 'playlist_detail_page.dart';
 
 class ArtistDetailPage extends StatefulWidget {
   const ArtistDetailPage({
@@ -33,6 +34,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
 
   final _scrollController = ScrollController();
   final _songs = <Song>[];
+  final _albums = <ArtistAlbum>[];
 
   ArtistDetail? _detail;
   String? _resolvedArtistId;
@@ -62,6 +64,7 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     setState(() {
       _detail = null;
       _songs.clear();
+      _albums.clear();
       _nextPage = 1;
       _hasMore = true;
       _isInitialLoading = true;
@@ -114,14 +117,17 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
           pageSize: _pageSize,
           sort: 'hot',
         ),
+        widget.api.artistAlbums(artistId, pageSize: 20),
       ]);
       if (!mounted) return;
 
       final detail = results[0] as ArtistDetail;
       final songs = results[1] as List<Song>;
+      final albums = results[2] as List<ArtistAlbum>;
       setState(() {
         _detail = detail;
         _songs.addAll(songs);
+        _albums.addAll(albums);
         _nextPage = 2;
         _hasMore = songs.length == _pageSize;
         _isInitialLoading = false;
@@ -178,6 +184,24 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
     }
   }
 
+  void _openAlbum(ArtistAlbum album) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlaylistDetailPage(
+          api: widget.api,
+          auth: widget.auth,
+          player: widget.player,
+          playlist: PlaylistSummary(
+            id: album.id,
+            title: album.name,
+            subtitle: album.authorName ?? widget.artist.name,
+            coverUrl: album.coverUrl,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -214,6 +238,13 @@ class _ArtistDetailPageState extends State<ArtistDetailPage> {
                       ),
                     )
                   else ...[
+                    if (_albums.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _ArtistAlbumSection(
+                          albums: _albums,
+                          onTap: _openAlbum,
+                        ),
+                      ),
                     SliverToBoxAdapter(
                       child: _SongSectionHeader(
                         count: _songs.length,
@@ -407,6 +438,97 @@ class _ArtistPosterFallback extends StatelessWidget {
         Icons.person_rounded,
         size: 88,
         color: Colors.white.withValues(alpha: .86),
+      ),
+    );
+  }
+}
+
+/// 歌手专辑横向区块。
+class _ArtistAlbumSection extends StatelessWidget {
+  const _ArtistAlbumSection({required this.albums, required this.onTap});
+
+  final List<ArtistAlbum> albums;
+  final ValueChanged<ArtistAlbum> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+            child: Text(
+              '专辑 ${albums.length}',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 168,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              itemCount: albums.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final album = albums[index];
+                return _ArtistAlbumCard(
+                  album: album,
+                  onTap: () => onTap(album),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArtistAlbumCard extends StatelessWidget {
+  const _ArtistAlbumCard({required this.album, required this.onTap});
+
+  final ArtistAlbum album;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 120,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Artwork(url: album.coverUrl, size: 120),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              album.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            if (album.publishDate case final date?)
+              Text(
+                date,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

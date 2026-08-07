@@ -315,6 +315,18 @@ class PlaylistSummary {
     );
   }
 
+  factory PlaylistSummary.fromSimilar(Map<String, dynamic> json) {
+    return PlaylistSummary(
+      id: asString(json['global_collection_id']) ?? '',
+      title: asString(json['collection_name']) ?? '未知歌单',
+      coverUrl: normalizeImageUrl(
+        asString(json['flexible_cover']) ?? asString(json['cover']),
+      ),
+      songCount: asInt(json['song_count']) ?? asInt(json['count']),
+      playCount: asInt(json['heat']),
+      creatorName: asString(json['user_name']),
+    );
+  }
   factory PlaylistSummary.fromUser(
     Map<String, dynamic> json, {
     String? currentUserId,
@@ -507,6 +519,33 @@ class Song {
     );
   }
 
+  factory Song.fromTopSong(Map<String, dynamic> json) {
+    final hash =
+        asString(json['hash']) ??
+        asString(json['hash_320']) ??
+        asString(json['hash_flac']) ??
+        '';
+    final audioId =
+        asString(json['audio_id']) ?? asString(json['album_audio_id']);
+    final author = asString(json['author_name']) ?? '未知艺人';
+    return Song(
+      id: audioId ?? hash,
+      title:
+          asString(json['songname']) ??
+          asString(json['filename']) ??
+          '未知歌曲',
+      artist: author,
+      hash: hash,
+      albumId: asString(json['album_id']),
+      albumAudioId: asString(json['album_audio_id']),
+      albumName: asString(json['album_name']),
+      coverUrl: normalizeImageUrl(
+        asString(json['album_sizable_cover']),
+      ),
+      duration: durationFromMilliseconds(json['timelength']),
+      artists: parseArtists(json, fallbackName: author),
+    );
+  }
   factory Song.fromDaily(Map<String, dynamic> json) {
     final songId = asString(json['songid']) ?? asString(json['audio_id']);
     final artists = parseArtists(
@@ -1942,6 +1981,211 @@ class NetEaseAlbum {
       id: asInt(json['id']) ?? 0,
       name: asString(json['name']) ?? '未知专辑',
       picUrl: asString(json['picUrl']),
+    );
+  }
+}
+
+/// 网易云 / QQ 音乐歌单分享链接解析结果（/playlist/external/parse）。
+class ExternalPlaylistParseResult {
+  const ExternalPlaylistParseResult({
+    required this.sourcePlatform,
+    required this.playlistName,
+    required this.songNames,
+  });
+
+  final String sourcePlatform;
+  final String playlistName;
+  final List<String> songNames;
+
+  factory ExternalPlaylistParseResult.fromJson(Map<String, dynamic> json) {
+    return ExternalPlaylistParseResult(
+      sourcePlatform: asString(json['sourcePlatform']) ?? '',
+      playlistName: asString(json['playlistName']) ?? '未命名歌单',
+      songNames: asList(json['songNames'])
+          .map((item) => item?.toString() ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList(),
+    );
+  }
+}
+
+/// 歌手专辑（/artist/albums）。
+class ArtistAlbum {
+  const ArtistAlbum({
+    required this.id,
+    required this.name,
+    this.coverUrl,
+    this.authorName,
+    this.publishDate,
+    this.intro,
+  });
+
+  final String id;
+  final String name;
+  final String? coverUrl;
+  final String? authorName;
+  final String? publishDate;
+  final String? intro;
+
+  factory ArtistAlbum.fromJson(Map<String, dynamic> json) {
+    return ArtistAlbum(
+      id: asString(json['album_id']) ?? asString(json['id']) ?? '',
+      name:
+          asString(json['album_name']) ??
+          asString(json['name']) ??
+          '未知专辑',
+      coverUrl: normalizeImageUrl(
+        asString(json['cover']) ?? asString(json['sizable_cover']),
+      ),
+      authorName: asString(json['author_name']),
+      publishDate: asString(json['publish_date']),
+      intro: asString(json['intro']),
+    );
+  }
+}
+
+/// 业务线 VIP 信息（/user/vip/detail 的 busi_vip 项）。
+class BusiVipInfo {
+  const BusiVipInfo({
+    required this.isVip,
+    this.productType,
+    this.busiType,
+    this.vipBeginTime,
+    this.vipEndTime,
+    this.vipClearday,
+  });
+
+  final bool isVip;
+  final String? productType;
+  final String? busiType;
+  final String? vipBeginTime;
+  final String? vipEndTime;
+  final String? vipClearday;
+
+  factory BusiVipInfo.fromJson(Map<String, dynamic> json) {
+    return BusiVipInfo(
+      isVip: (asInt(json['is_vip']) ?? 0) == 1,
+      productType: asString(json['product_type']),
+      busiType: asString(json['busi_type']),
+      vipBeginTime: asString(json['vip_begin_time']),
+      vipEndTime: asString(json['vip_end_time']),
+      vipClearday: asString(json['vip_clearday']),
+    );
+  }
+}
+
+/// 当前登录用户 VIP 信息（/user/vip/detail）。
+class UserVipInfo {
+  const UserVipInfo({
+    this.userId,
+    this.isVip = 0,
+    this.vipType,
+    this.busiVip = const [],
+    this.isSuperVip = false,
+    this.isConceptVip = false,
+  });
+
+  final String? userId;
+  final int isVip;
+  final int? vipType;
+  final List<BusiVipInfo> busiVip;
+  final bool isSuperVip;
+  final bool isConceptVip;
+
+  bool get isVipActive => isVip == 1;
+
+  factory UserVipInfo.fromJson(Map<String, dynamic> json) {
+    return UserVipInfo(
+      userId: asString(json['userid']),
+      isVip: asInt(json['is_vip']) ?? 0,
+      vipType: asInt(json['vip_type']),
+      busiVip: asList(json['busi_vip'])
+          .whereType<Map<String, dynamic>>()
+          .map(BusiVipInfo.fromJson)
+          .toList(),
+      isSuperVip: json['isSuperVip'] == true,
+      isConceptVip: json['isConceptVip'] == true,
+    );
+  }
+}
+
+/// 歌曲高潮片段信息（/song/climax）。
+class SongClimax {
+  const SongClimax({
+    required this.startTime,
+    required this.endTime,
+    required this.hash,
+  });
+
+  final Duration startTime;
+  final Duration endTime;
+  final String hash;
+
+  bool get isValid => endTime > startTime && endTime > Duration.zero;
+
+  factory SongClimax.fromJson(Map<String, dynamic> json) {
+    return SongClimax(
+      startTime: Duration(milliseconds: asInt(json['start_time']) ?? 0),
+      endTime: Duration(milliseconds: asInt(json['end_time']) ?? 0),
+      hash: asString(json['hash']) ?? '',
+    );
+  }
+}
+
+/// 新碟上架（/top/album）。
+class TopAlbumItem {
+  const TopAlbumItem({
+    required this.id,
+    required this.name,
+    this.singerName,
+    this.coverUrl,
+    this.publishTime,
+    this.songCount,
+  });
+
+  final String id;
+  final String name;
+  final String? singerName;
+  final String? coverUrl;
+  final String? publishTime;
+  final int? songCount;
+
+  factory TopAlbumItem.fromJson(Map<String, dynamic> json) {
+    return TopAlbumItem(
+      id: asString(json['albumid']) ?? '',
+      name: asString(json['albumname']) ?? '未知专辑',
+      singerName: asString(json['singername']),
+      coverUrl: normalizeImageUrl(asString(json['imgurl'])),
+      publishTime: asString(json['publishtime']),
+      songCount: asInt(json['songcount']),
+    );
+  }
+}
+
+/// 服务端继续播放信息（/lastest/songs/listen）。
+class LatestListenResult {
+  const LatestListenResult({
+    this.userId,
+    this.songs = const [],
+    this.cursor = 0,
+    this.hasMore = false,
+  });
+
+  final String? userId;
+  final List<Song> songs;
+  final int cursor;
+  final bool hasMore;
+
+  factory LatestListenResult.fromJson(Map<String, dynamic> json) {
+    return LatestListenResult(
+      userId: asString(json['userid']),
+      songs: asList(json['songs'])
+          .whereType<Map<String, dynamic>>()
+          .map(Song.fromSearch)
+          .where((song) => song.hash.isNotEmpty)
+          .toList(),
+      cursor: asInt(json['cursor']) ?? 0,
+      hasMore: (asInt(json['has_more']) ?? 0) == 1,
     );
   }
 }

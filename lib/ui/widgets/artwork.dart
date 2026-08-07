@@ -81,10 +81,23 @@ class _ContentUriImageState extends State<_ContentUriImage> {
     _loadImage();
   }
 
+  @override
+  void didUpdateWidget(covariant _ContentUriImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 列表刷新/重排时同一位置会复用 State，uri 变化需要重新加载封面，
+    // 否则会显示上一次的旧封面（封面错位）。
+    if (oldWidget.uri != widget.uri) {
+      _bytes = null;
+      _loading = true;
+      _loadImage();
+    }
+  }
+
   Future<void> _loadImage() async {
+    // 记录发起加载时的 uri，用于丢弃过期结果，避免快速刷新时的竞态。
+    final uri = widget.uri;
     try {
       // 从 content URI 中提取 albumId
-      final uri = widget.uri;
       final albumId = int.tryParse(uri.split('/').last);
       if (albumId == null || albumId <= 0) {
         if (mounted) setState(() => _loading = false);
@@ -94,12 +107,11 @@ class _ContentUriImageState extends State<_ContentUriImage> {
         'getAlbumArt',
         {'albumId': albumId},
       );
-      if (mounted) {
-        setState(() {
-          _bytes = bytes;
-          _loading = false;
-        });
-      }
+      if (!mounted || widget.uri != uri) return;
+      setState(() {
+        _bytes = bytes;
+        _loading = false;
+      });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     }

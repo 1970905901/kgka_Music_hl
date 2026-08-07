@@ -1411,6 +1411,19 @@
         }
       }
     },
+    "/everyday/style/recommend": {
+      "get": {
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "风格推荐",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/ai/recommend": {
       "get": {
         "tags": [
@@ -1539,7 +1552,24 @@
         ],
         "responses": {
           "200": {
-            "description": "歌曲推荐内容。"
+            "description": "歌曲推荐内容。",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopCardResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopCardResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopCardResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -3934,6 +3964,36 @@
         }
       }
     },
+    "/rank/top": {
+      "get": {
+        "tags": [
+          "Rank"
+        ],
+        "summary": "获取排行榜推荐列表",
+        "responses": {
+          "200": {
+            "description": "榜单列表。",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankLTopResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankLTopResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankLTopResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/register/dev": {
       "get": {
         "tags": [
@@ -4106,7 +4166,7 @@
           {
             "name": "type",
             "in": "query",
-            "description": "搜索类型。默认为单曲，special：歌单，lyric：歌词，song：单曲，album：专辑",
+            "description": "搜索类型。默认为单曲，special：歌单，lyric：歌词，song：单曲，album：专辑，author：歌手",
             "schema": {
               "type": "string",
               "default": "song"
@@ -4250,6 +4310,71 @@
         }
       }
     },
+    "/search/author": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "搜索歌手。",
+        "parameters": [
+          {
+            "name": "keywords",
+            "in": "query",
+            "description": "搜索关键词。",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码。",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "匹配的歌手列表。",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchAuthorItem"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchAuthorItem"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchAuthorItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/search/hot": {
       "get": {
         "tags": [
@@ -4369,30 +4494,6 @@
         "responses": {
           "200": {
             "description": "搜索建议结果。"
-          }
-        }
-      }
-    },
-    "/search/mixed": {
-      "get": {
-        "tags": [
-          "Search"
-        ],
-        "summary": "综合搜索。",
-        "parameters": [
-          {
-            "name": "keyword",
-            "in": "query",
-            "description": "搜索关键词。",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "综合搜索结果。"
           }
         }
       }
@@ -8103,11 +8204,6 @@
             "format": "int64"
           },
           "album_id": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
             "format": "int64"
           },
           "album_audio_id": {
@@ -9484,7 +9580,10 @@
             "type": "string"
           },
           "union_cover": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ogg_128_hash": {
             "type": "string"
@@ -9728,6 +9827,21 @@
           "rankname": {
             "type": "string",
             "description": "榜单名称。"
+          },
+          "classify": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "榜单分类 1：星耀榜，2：地区榜，3：特色榜，4：全球榜，5：曲风榜。",
+            "format": "int64"
+          },
+          "songinfo": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankListSongPreview"
+            }
           }
         },
         "description": "单个榜单信息。"
@@ -9736,6 +9850,73 @@
         "type": "object",
         "properties": {
           "info": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankListItem"
+            },
+            "description": "榜单列表。"
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "error_code": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "榜单列表结果。"
+      },
+      "RankListSongPreview": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "歌曲名"
+          },
+          "author": {
+            "type": "string",
+            "description": "歌手名"
+          },
+          "songname": {
+            "type": "string",
+            "description": "完整组合名称（通常是 \"歌手 - 歌名\"）"
+          },
+          "album_audio_id": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "trans_param": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PrivilegeTransParam"
+              }
+            ]
+          }
+        },
+        "description": "榜单列表中附带的歌曲预览信息"
+      },
+      "RankLTopResponse": {
+        "type": "object",
+        "properties": {
+          "list": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RankListItem"
@@ -10207,6 +10388,72 @@
         },
         "description": "搜索结果中的专辑信息。"
       },
+      "SearchAuthorItem": {
+        "type": "object",
+        "properties": {
+          "AuthorId": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "歌手 ID。",
+            "format": "int64"
+          },
+          "AuthorName": {
+            "type": "string",
+            "description": "歌手名称。"
+          },
+          "AudioCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "收录歌曲数。",
+            "format": "int32"
+          },
+          "publish_time": {
+            "type": "string",
+            "description": "发布时间。"
+          },
+          "Heat": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "热度。",
+            "format": "int64"
+          },
+          "Avatar": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "封面图地址。"
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "error_code": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "搜索结果中的专辑信息。"
+      },
       "SearchHotCategory": {
         "type": "object",
         "properties": {
@@ -10596,6 +10843,154 @@
           }
         },
         "description": "单首歌曲信息"
+      },
+      "TopCardResponse": {
+        "type": "object",
+        "properties": {
+          "OlexpIds": {
+            "type": "string"
+          },
+          "song_list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopCardSong"
+            }
+          },
+          "song_list_size": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "bi_biz": {
+            "type": "string"
+          },
+          "rec_desc": {
+            "type": "string"
+          },
+          "rec_user_nickname": {
+            "type": "string"
+          },
+          "sign": {
+            "type": "string"
+          },
+          "card_id": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "error_code": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "对应 /top/card 接口 (猜你喜欢/各种推荐卡片) 的响应数据"
+      },
+      "TopCardSong": {
+        "type": "object",
+        "properties": {
+          "songname": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "album_id": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "album_name": {
+            "type": "string"
+          },
+          "songid": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "mixsongid": {
+            "type": "string"
+          },
+          "time_length": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "sizable_cover": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "privilege": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "singerinfo": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "error_code": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "卡片推荐的单曲信息"
       },
       "TransParam": {
         "type": "object",

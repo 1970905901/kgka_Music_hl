@@ -150,18 +150,24 @@ class _HomePageState extends State<HomePage> {
         widget.api.dailyRecommend(),
         widget.api.recommendedPlaylists(),
         widget.api.albumShop(),
+        widget.api.topSongs(),
+        widget.api.topAlbums(pageSize: 10),
       ]);
       if (!mounted) return;
       final data = _HomeData(
         daily: results[0] as DailyRecommend,
         playlists: results[1] as List<PlaylistSummary>,
         albums: results[2] as List<AlbumShopItem>,
+        topSongs: results[3] as List<Song>,
+        topAlbums: results[4] as List<TopAlbumItem>,
       );
       _cachedData = data;
       await widget.cache.write('cache_home', {
         'daily': data.daily.toCache(),
         'playlists': data.playlists.map((p) => p.toCache()).toList(),
         'albums': data.albums.map((a) => a.toCache()).toList(),
+        'topSongs': data.topSongs.map((song) => song.toCache()).toList(),
+        'topAlbums': data.topAlbums.map(_topAlbumToCache).toList(),
       });
       if (!mounted) return;
       _checkAndAutoPlay(data);
@@ -178,17 +184,23 @@ class _HomePageState extends State<HomePage> {
       widget.api.dailyRecommend(),
       widget.api.recommendedPlaylists(),
       widget.api.albumShop(),
+      widget.api.topSongs(),
+      widget.api.topAlbums(pageSize: 10),
     ]);
     final data = _HomeData(
       daily: results[0] as DailyRecommend,
       playlists: results[1] as List<PlaylistSummary>,
       albums: results[2] as List<AlbumShopItem>,
+      topSongs: results[3] as List<Song>,
+      topAlbums: results[4] as List<TopAlbumItem>,
     );
     _cachedData = data;
     await widget.cache.write('cache_home', {
       'daily': data.daily.toCache(),
       'playlists': data.playlists.map((p) => p.toCache()).toList(),
       'albums': data.albums.map((a) => a.toCache()).toList(),
+      'topSongs': data.topSongs.map((song) => song.toCache()).toList(),
+      'topAlbums': data.topAlbums.map(_topAlbumToCache).toList(),
     });
     _checkAndAutoPlay(data);
     return data;
@@ -228,6 +240,15 @@ class _HomePageState extends State<HomePage> {
       albums: (json['albums'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(AlbumShopItem.fromCache)
+          .toList(),
+      topSongs: (json['topSongs'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(Song.fromCache)
+          .where((song) => song.hash.isNotEmpty)
+          .toList(),
+      topAlbums: (json['topAlbums'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(_topAlbumFromCache)
           .toList(),
     );
   }
@@ -290,6 +311,24 @@ class _HomePageState extends State<HomePage> {
           auth: widget.auth,
           player: widget.player,
           playlist: playlist,
+        ),
+      ),
+    );
+  }
+
+  void _openTopAlbum(TopAlbumItem album) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlaylistDetailPage(
+          api: widget.api,
+          auth: widget.auth,
+          player: widget.player,
+          playlist: PlaylistSummary(
+            id: album.id,
+            title: album.name,
+            subtitle: album.singerName,
+            coverUrl: album.coverUrl,
+          ),
         ),
       ),
     );
@@ -426,6 +465,22 @@ class _HomePageState extends State<HomePage> {
                               playlists: data.playlists,
                               onTap: _openPlaylist,
                             ),
+                            if (data.topSongs.isNotEmpty)
+                              _SongSection(
+                                title: '新歌速递',
+                                songs: data.topSongs,
+                                onPlay: _playSong,
+                                isLiked: (song) => widget.auth.isLiked(song),
+                                onLikeTap: (song) => widget.auth.toggleLike(song),
+                                auth: widget.auth,
+                                player: widget.player,
+                                onViewArtist: _openArtist,
+                              ),
+                            if (data.topAlbums.isNotEmpty)
+                              _TopAlbumRail(
+                                albums: data.topAlbums,
+                                onTap: _openTopAlbum,
+                              ),
                           ],
                         ),
                       ),
@@ -1261,6 +1316,92 @@ class _HomeSongRow extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// 新碟上架横向区块。
+class _TopAlbumRail extends StatelessWidget {
+  const _TopAlbumRail({required this.albums, required this.onTap});
+
+  final List<TopAlbumItem> albums;
+  final ValueChanged<TopAlbumItem> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (albums.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: _SectionHeader(
+              title: '新碟上架',
+              action: const SizedBox.shrink(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 172,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              itemCount: albums.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final album = albums[index];
+                return _TopAlbumCard(album: album, onTap: () => onTap(album));
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopAlbumCard extends StatelessWidget {
+  const _TopAlbumCard({required this.album, required this.onTap});
+
+  final TopAlbumItem album;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 120,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Artwork(url: album.coverUrl, size: 120),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              album.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            Text(
+              album.singerName ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2190,11 +2331,15 @@ class _HomeData {
     required this.daily,
     required this.playlists,
     required this.albums,
+    this.topSongs = const [],
+    this.topAlbums = const [],
   });
 
   final DailyRecommend daily;
   final List<PlaylistSummary> playlists;
   final List<AlbumShopItem> albums;
+  final List<Song> topSongs;
+  final List<TopAlbumItem> topAlbums;
 }
 
 class _RadioData {
@@ -2389,3 +2534,21 @@ class _PillCard extends StatelessWidget {
     );
   }
 }
+
+Map<String, dynamic> _topAlbumToCache(TopAlbumItem album) => {
+  'id': album.id,
+  'name': album.name,
+  'singerName': album.singerName,
+  'coverUrl': album.coverUrl,
+  'publishTime': album.publishTime,
+  'songCount': album.songCount,
+};
+
+TopAlbumItem _topAlbumFromCache(Map<String, dynamic> json) => TopAlbumItem(
+  id: (json['id'] as String?) ?? '',
+  name: (json['name'] as String?) ?? '未知专辑',
+  singerName: json['singerName'] as String?,
+  coverUrl: json['coverUrl'] as String?,
+  publishTime: json['publishTime'] as String?,
+  songCount: json['songCount'] as int?,
+);

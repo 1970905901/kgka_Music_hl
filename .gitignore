@@ -44,4 +44,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# 签名文件与密钥配置（防止误提交）
+*.keystore
+*.jks
+key.properties
+
 .ace-tool/

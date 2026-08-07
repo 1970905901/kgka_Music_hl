@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../models/music_models.dart';
 import '../../services/cache_service.dart';
 import '../../services/music_api.dart';
 import '../widgets/artwork.dart';
+import '../widgets/import_playlist_sheet.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/now_playing_badge.dart';
 import '../widgets/song_action_sheets.dart';
@@ -56,6 +58,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   var _isLoadingMore = false;
   String? _errorMessage;
   String? _loadMoreError;
+  List<PlaylistSummary> _similarPlaylists = const [];
   bool _isMutating = false;
   bool _isSearching = false;
   bool _isLoadingAllSongs = false;
@@ -392,6 +395,16 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         _isInitialLoading = false;
       });
     }
+    unawaited(_loadSimilarPlaylists());
+  }
+
+  /// 加载相似歌单（增强展示，失败静默忽略）。
+  Future<void> _loadSimilarPlaylists() async {
+    try {
+      final similar = await widget.api.similarPlaylists(widget.playlist.id);
+      if (!mounted || similar.isEmpty) return;
+      setState(() => _similarPlaylists = similar);
+    } catch (_) {}
   }
 
   void _maybeLoadMore() {
@@ -652,6 +665,19 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     }
   }
 
+  void _openSimilarPlaylist(PlaylistSummary playlist) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlaylistDetailPage(
+          api: widget.api,
+          auth: widget.auth,
+          player: widget.player,
+          playlist: playlist,
+        ),
+      ),
+    );
+  }
+
   Future<void> _runMutation(Future<void> Function() action) async {
     if (_isMutating) return;
     setState(() => _isMutating = true);
@@ -761,6 +787,15 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                       tooltip: '分享',
                       onPressed: _sharePlaylist,
                       icon: const Icon(Icons.share_rounded),
+                    ),
+                    IconButton(
+                      tooltip: '导入歌单',
+                      onPressed: () => showImportPlaylistSheet(
+                        context: context,
+                        api: widget.api,
+                        auth: widget.auth,
+                      ),
+                      icon: const Icon(Icons.playlist_add_rounded),
                     ),
                     if (_isMutating)
                       const Padding(
@@ -881,6 +916,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                         onRetry: _loadMore,
                       ),
                     ),
+                  if (_searchQuery.isEmpty && _similarPlaylists.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _SimilarPlaylistsSection(
+                        playlists: _similarPlaylists,
+                        onTap: _openSimilarPlaylist,
+                      ),
+                    ),
                 ],
               ],
             ],
@@ -896,6 +938,98 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       ),
     ),
   );
+  }
+}
+
+/// 相似歌单横向区块。
+class _SimilarPlaylistsSection extends StatelessWidget {
+  const _SimilarPlaylistsSection({
+    required this.playlists,
+    required this.onTap,
+  });
+
+  final List<PlaylistSummary> playlists;
+  final ValueChanged<PlaylistSummary> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+            child: Text(
+              '相似歌单',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 170,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              itemCount: playlists.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final playlist = playlists[index];
+                return _SimilarPlaylistCard(
+                  playlist: playlist,
+                  onTap: () => onTap(playlist),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SimilarPlaylistCard extends StatelessWidget {
+  const _SimilarPlaylistCard({required this.playlist, required this.onTap});
+
+  final PlaylistSummary playlist;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 120,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Artwork(url: playlist.coverUrl, size: 120),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              playlist.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            Text(
+              playlist.creatorName ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
