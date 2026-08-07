@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../models/music_models.dart';
@@ -196,7 +197,7 @@ class _ImportPlaylistSheetState extends State<ImportPlaylistSheet> {
               decoration: InputDecoration(
                 hintText: '粘贴分享链接或文本，例如：\n分享歌单《xxx》… https://music.163.com/playlist?id=123',
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
               ),
             ),
@@ -238,7 +239,7 @@ class _ImportPlaylistSheetState extends State<ImportPlaylistSheet> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Row(
             children: [
@@ -305,7 +306,7 @@ class _ImportPlaylistSheetState extends State<ImportPlaylistSheet> {
         if (_step == _ImportStep.importing) ...[
           LinearProgressIndicator(
             value: _total == 0 ? null : _done / _total,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(AppRadius.xs),
           ),
           const SizedBox(height: 8),
           Text(

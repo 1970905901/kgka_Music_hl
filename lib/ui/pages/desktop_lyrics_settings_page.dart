@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/player_controller.dart';
 import '../../services/desktop_lyrics_service.dart';
@@ -176,10 +177,10 @@ class _SettingsCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Column(children: children),
       ),
     );

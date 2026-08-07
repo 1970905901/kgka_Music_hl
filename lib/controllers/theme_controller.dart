@@ -30,6 +30,10 @@ class ThemeController extends ChangeNotifier {
   static const _bgOpacityKey = 'theme.bg_opacity';
   static const _landscapeEnabledKey = 'theme.landscape_enabled';
   static const _carModeEnabledKey = 'theme.car_mode_enabled';
+  static const _fontScaleKey = 'theme.font_scale';
+
+  /// 全局字体大小档位（1.0 = 标准，1.1 = 大，1.2 = 特大）。
+  static const fontScaleOptions = [1.0, 1.1, 1.2];
 
   /// 车机模式下文字放大倍数（远距离观看更清晰）。
   static const double carModeFontScaleFactor = 1.12;
@@ -52,6 +56,7 @@ class ThemeController extends ChangeNotifier {
   double _backgroundOpacity = 0.15;
   bool _landscapeEnabled = false;
   bool _carModeEnabled = false;
+  double _fontScale = 1.0;
   // 车机检测结果缓存（设备不变，启动时检测一次）。
   bool _isAutomotiveDevice = false;
 
@@ -65,6 +70,8 @@ class ThemeController extends ChangeNotifier {
   double get backgroundOpacity => _backgroundOpacity;
   bool get landscapeEnabled => _landscapeEnabled;
   bool get carModeEnabled => _carModeEnabled;
+
+  double get fontScale => _fontScale;
   bool get isAutomotiveDevice => _isAutomotiveDevice;
 
   /// 是否使用了非默认种子色。
@@ -91,6 +98,7 @@ class ThemeController extends ChangeNotifier {
     // 否则默认关闭。用户手动开关过后键一定存在，永不覆盖用户选择。
     if (prefs.containsKey(_carModeEnabledKey)) {
       _carModeEnabled = prefs.getBool(_carModeEnabledKey) ?? false;
+      _fontScale = prefs.getDouble(_fontScaleKey) ?? 1.0;
     } else {
       _carModeEnabled = _isAutomotiveDevice;
     }
@@ -138,6 +146,15 @@ class ThemeController extends ChangeNotifier {
 
   /// 开启/关闭车机模式：横屏时启用左侧播放面板 + 顶栏布局，并放大文字。
   /// 关闭时回到普通横屏（NavigationRail），竖屏始终不受影响。
+  Future<void> setFontScale(double scale) async {
+    final clamped = fontScaleOptions.contains(scale) ? scale : 1.0;
+    if (_fontScale == clamped) return;
+    _fontScale = clamped;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_fontScaleKey, clamped);
+    notifyListeners();
+  }
+
   Future<void> setCarModeEnabled(bool enabled) async {
     if (_carModeEnabled == enabled) return;
     _carModeEnabled = enabled;

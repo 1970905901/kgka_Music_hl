@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'design_tokens.dart';
 
 class AppTheme {
   static const blue = Color(0xFF1478FF);
@@ -92,7 +93,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -105,17 +106,17 @@ class AppTheme {
         filled: true,
         fillColor: isDark ? const Color(0xFF171A22) : Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: BorderSide(
             color: scheme.outlineVariant.withValues(alpha: .72),
           ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: BorderSide(color: scheme.primary, width: 1.3),
         ),
       ),

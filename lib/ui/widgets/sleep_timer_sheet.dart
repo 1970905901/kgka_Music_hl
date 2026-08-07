@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/player_controller.dart';
 
@@ -101,7 +102,7 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> {
             DecoratedBox(
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: SwitchListTile(
                 value: _finishSong,
@@ -116,7 +117,7 @@ class _SleepTimerSheetState extends State<_SleepTimerSheet> {
                   vertical: 2,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
               ),
             ),
@@ -187,7 +188,7 @@ class _ActiveTimerDisplay extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -220,7 +221,7 @@ class _TimerChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

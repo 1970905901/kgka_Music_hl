@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -51,7 +52,7 @@ Future<void> showSongActionSheet({
             width: 320,
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.2),
@@ -126,7 +127,7 @@ Future<void> showSongActionSheet({
                   const SizedBox(height: 16),
                   Material(
                     color: colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                     clipBehavior: Clip.antiAlias,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -211,7 +212,7 @@ class _GridItem extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest.withValues(alpha: .6),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: Icon(action.icon, color: color, size: 21),
           ),
@@ -293,7 +294,7 @@ Future<void> showAddToPlaylistSheet({
                         final playlist = playlists[index];
                         return ListTile(
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
                           ),
                           leading: Artwork(
                             url: playlist.coverUrl,
@@ -455,7 +456,7 @@ class _CarGridActionItem extends StatelessWidget {
 
     return Material(
       color: colorScheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {

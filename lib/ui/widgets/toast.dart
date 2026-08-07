@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 /// Toast 类型，决定图标与配色。
 enum ToastType { info, success, error }
@@ -175,7 +176,7 @@ class _ToastViewState extends State<_ToastView>
                     decoration: BoxDecoration(
                       color: (isDark ? const Color(0xFF1F242E) : const Color(0xFFFFFFFF))
                           .withValues(alpha: isDark ? .96 : .98),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                       border: Border.all(
                         color: accentColor.withValues(alpha: .28),
                         width: 1,

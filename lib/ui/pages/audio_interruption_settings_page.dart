@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import 'package:flutter/services.dart';
 
 import '../../controllers/player_controller.dart';
@@ -35,7 +36,7 @@ class AudioInterruptionSettingsPage extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer.withValues(alpha: .35),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +65,7 @@ class AudioInterruptionSettingsPage extends StatelessWidget {
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Column(
                     children: [
@@ -111,7 +112,7 @@ class AudioInterruptionSettingsPage extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colorScheme.tertiaryContainer.withValues(alpha: .3),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../models/music_models.dart';
 
@@ -39,12 +40,12 @@ Future<AudioQuality?> showAudioQualitySheet({
               const SizedBox(height: 12),
               Material(
                 color: colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
                 clipBehavior: Clip.antiAlias,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Column(
                     children: [

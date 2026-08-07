@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import 'package:flutter/services.dart';
 
 import '../../controllers/auth_controller.dart';
@@ -59,6 +60,13 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    return AppShortcutScope(
+      player: widget.player,
+      child: _buildShell(context),
+    );
+  }
+
+  Widget _buildShell(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final colorScheme = Theme.of(context).colorScheme;
     final size = MediaQuery.sizeOf(context);
@@ -341,7 +349,7 @@ class _AppShellState extends State<AppShell> {
                 color: colorScheme.surfaceContainerHighest.withValues(
                   alpha: .54,
                 ),
-                borderRadius: BorderRadius.circular(23), // Increased from 19 (height/2)
+                borderRadius: BorderRadius.circular(AppRadius.xxl), // Increased from 19 (height/2)
               ),
               child: Row(
                 children: [
@@ -407,7 +415,7 @@ class _AppShellState extends State<AppShell> {
                         side: BorderSide.none,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Added explicit padding
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12), // Added explicit shape for larger tap area
+                          borderRadius: BorderRadius.circular(AppRadius.md), // Added explicit shape for larger tap area
                         ),
                       ),
                     ),
@@ -513,4 +521,68 @@ class _RelativeTextScaler extends TextScaler {
 
   @override
   String toString() => '$base × $multiplier';
+}
+
+/// 全局快捷键作用域（桌面端）：空格播放/暂停，左右键切歌。
+class AppShortcutScope extends StatelessWidget {
+  const AppShortcutScope({
+    super.key,
+    required this.player,
+    required this.child,
+  });
+
+  final PlayerController player;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Shortcuts(
+      shortcuts: {
+        const SingleActivator(LogicalKeyboardKey.space):
+            const _PlayPauseIntent(),
+        const SingleActivator(LogicalKeyboardKey.arrowRight):
+            const _NextIntent(),
+        const SingleActivator(LogicalKeyboardKey.arrowLeft):
+            const _PreviousIntent(),
+      },
+      child: Actions(
+        actions: {
+          _PlayPauseIntent: CallbackAction<_PlayPauseIntent>(
+            onInvoke: (_) {
+              // 输入框聚焦时不拦截空格。
+              final focused = FocusManager.instance.primaryFocus;
+              final editing = focused
+                  ?.context
+                  ?.findAncestorWidgetOfExactType<EditableText>();
+              if (editing == null) player.togglePlay();
+              return null;
+            },
+          ),
+          _NextIntent: CallbackAction<_NextIntent>(
+            onInvoke: (_) {
+              player.next();
+              return null;
+            },
+          ),
+          _PreviousIntent: CallbackAction<_PreviousIntent>(
+            onInvoke: (_) {
+              player.previous();
+              return null;
+            },
+          ),
+        },
+        child: Focus(autofocus: true, child: child),
+      ),
+    );
+  }
+}
+
+class _PlayPauseIntent extends Intent {
+  const _PlayPauseIntent();
+}
+class _NextIntent extends Intent {
+  const _NextIntent();
+}
+class _PreviousIntent extends Intent {
+  const _PreviousIntent();
 }

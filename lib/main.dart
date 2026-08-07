@@ -168,9 +168,15 @@ class _KaMusicAppState extends State<KaMusicApp> with WidgetsBindingObserver {
             transparentBackground: _theme.backgroundEnabled,
           ),
           builder: (context, child) {
-            return _AppBackground(
-              themeController: _theme,
-              child: _SystemUiOverlay(child: child ?? const SizedBox.shrink()),
+            // 全局字体大小（保留系统无障碍缩放）。
+            final baseScale = MediaQuery.textScalerOf(context).scale(1.0);
+            final textScaler = TextScaler.linear(baseScale * _theme.fontScale);
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+              child: _AppBackground(
+                themeController: _theme,
+                child: _SystemUiOverlay(child: child ?? const SizedBox.shrink()),
+              ),
             );
           },
           home: AnimatedBuilder(

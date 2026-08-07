@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_section.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -452,42 +454,21 @@ class _ArtistAlbumSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-            child: Text(
-              '专辑 ${albums.length}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 168,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              itemCount: albums.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final album = albums[index];
-                return _ArtistAlbumCard(
-                  album: album,
-                  onTap: () => onTap(album),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
+    return AppHorizontalRail<ArtistAlbum>(
+      title: '专辑 ${albums.length}',
+      items: albums,
+      height: 168,
+      itemWidth: 120,
+      topPadding: 4,
+      headerPadding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+      itemBuilder: (context, album) => _ArtistAlbumCard(
+        album: album,
+        onTap: () => onTap(album),
       ),
     );
   }
 }
+
 
 class _ArtistAlbumCard extends StatelessWidget {
   const _ArtistAlbumCard({required this.album, required this.onTap});
@@ -500,14 +481,14 @@ class _ArtistAlbumCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: SizedBox(
         width: 120,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: Artwork(url: album.coverUrl, size: 120),
             ),
             const SizedBox(height: 6),
@@ -595,7 +576,7 @@ class _ArtistSongRow extends StatelessWidget {
         final activeColor = colorScheme.primary;
 
         return InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -604,7 +585,7 @@ class _ArtistSongRow extends StatelessWidget {
               color: active
                   ? activeColor.withValues(alpha: .09)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Row(
               children: [
@@ -618,7 +599,7 @@ class _ArtistSongRow extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: colorScheme.surface.withValues(alpha: .9),
-                            borderRadius: BorderRadius.circular(7),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(3),

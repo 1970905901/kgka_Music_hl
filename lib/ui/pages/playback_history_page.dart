@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -229,7 +230,7 @@ class _HistorySongRow extends StatelessWidget {
         final active = player.currentSong?.hash == song.hash;
         final activeColor = colorScheme.primary;
         return InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -238,7 +239,7 @@ class _HistorySongRow extends StatelessWidget {
               color: active
                   ? activeColor.withValues(alpha: .09)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Row(
               children: [
@@ -253,7 +254,7 @@ class _HistorySongRow extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: .42),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(AppRadius.xs),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -281,7 +282,7 @@ class _HistorySongRow extends StatelessWidget {
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: colorScheme.surface.withValues(alpha: .9),
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(3),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import 'package:flutter/services.dart';
 
 import '../../config/app_config.dart';
@@ -58,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
         final colorScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
           ),
           icon: Icon(
             Icons.error_outline_rounded,
@@ -87,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: colorScheme.errorContainer.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                   border: Border.all(
                     color: colorScheme.error.withValues(alpha: 0.3),
                   ),
@@ -555,7 +556,7 @@ class _LoginForm extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: .92),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
@@ -708,9 +709,9 @@ class _AccountOptionTile extends StatelessWidget {
 
     return Material(
       color: colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         onTap: () => Navigator.of(context).pop(account),
         child: Padding(
           padding: const EdgeInsets.all(14),
@@ -824,7 +825,7 @@ class _LoginTextField extends StatelessWidget {
             color: focused
                 ? colorScheme.primary.withValues(alpha: .08)
                 : colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(
               color: focused ? colorScheme.primary : colorScheme.outlineVariant,
               width: focused ? 1.4 : 1,
@@ -927,7 +928,7 @@ class _CodeButton extends StatelessWidget {
           color: enabled
               ? colorScheme.primary.withValues(alpha: .12)
               : colorScheme.surfaceContainerHighest.withValues(alpha: .68),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
           border: Border.all(
             color: enabled
                 ? colorScheme.primary.withValues(alpha: .28)
@@ -970,7 +971,7 @@ class _PrimaryLoginButton extends StatelessWidget {
           color: isLoading
               ? colorScheme.primary.withValues(alpha: .58)
               : colorScheme.primary,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
           boxShadow: [
             BoxShadow(
               color: colorScheme.primary.withValues(alpha: .24),
@@ -1012,7 +1013,7 @@ class _LoginTabBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: .68),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
         children: [
@@ -1026,7 +1027,7 @@ class _LoginTabBar extends StatelessWidget {
                   color: selectedIndex == 0
                       ? colorScheme.surface
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -1052,7 +1053,7 @@ class _LoginTabBar extends StatelessWidget {
                   color: selectedIndex == 1
                       ? colorScheme.surface
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -1097,7 +1098,7 @@ class _QrLoginForm extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: .92),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         border: Border.all(color: colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
@@ -1121,7 +1122,7 @@ class _QrLoginForm extends StatelessWidget {
               )
             else if (qrCode != null && qrCode!.imageUrl.isNotEmpty)
               ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
                 child: _QrImage(
                   imageUrl: qrCode!.imageUrl,
                   size: 200,
@@ -1135,7 +1136,7 @@ class _QrLoginForm extends StatelessWidget {
                 height: 200,
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Icon(
                   Icons.qr_code_2_rounded,
@@ -1164,7 +1165,7 @@ class _QrLoginForm extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: colorScheme.primary,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Text(
                     '刷新二维码',
@@ -1213,7 +1214,7 @@ class _QrImage extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: image,
     );
@@ -1226,7 +1227,7 @@ class _QrImage extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             color: fallbackColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: Icon(
             Icons.qr_code_2_rounded,

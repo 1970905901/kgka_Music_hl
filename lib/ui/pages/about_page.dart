@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -204,7 +205,7 @@ class _AppLogo extends StatelessWidget {
       width: 108,
       height: 108,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         boxShadow: [
           BoxShadow(
             color: colorScheme.primary.withValues(alpha: .22),
@@ -214,7 +215,7 @@ class _AppLogo extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
         child: Image.asset(
           'lib/assets/logo.png',
           fit: BoxFit.cover,
@@ -298,7 +299,7 @@ class _InfoSection extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -372,13 +373,13 @@ class _VersionCardState extends State<_VersionCard> {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: isCurrent
             ? Border.all(color: colorScheme.primary.withValues(alpha: .4))
             : null,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -399,7 +400,7 @@ class _VersionCardState extends State<_VersionCard> {
                           color: isCurrent
                               ? colorScheme.primary
                               : colorScheme.primary.withValues(alpha: .12),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Text(
                           version.version,

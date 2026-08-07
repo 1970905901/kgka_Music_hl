@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import 'package:flutter/services.dart';
 
 import '../../config/app_config.dart';
@@ -41,6 +42,66 @@ class SettingsPage extends StatelessWidget {
   final LocalMusicController? localMusic;
   final CacheService? cache;
   final DownloadController? downloads;
+
+  String _fontScaleLabel(double scale) {
+    if (scale >= 1.2) return '特大';
+    if (scale >= 1.1) return '大';
+    return '标准';
+  }
+
+  Future<void> _selectFontScale(BuildContext context, ThemeController theme) async {
+    final selected = await showModalBottomSheet<double>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '字体大小',
+                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final scale in ThemeController.fontScaleOptions) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      scale == theme.fontScale
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      color: scale == theme.fontScale
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(_fontScaleLabel(scale)),
+                    subtitle: Text(
+                      scale == 1.0
+                          ? '默认大小'
+                          : scale == 1.1
+                              ? '整体放大 10%'
+                              : '整体放大 20%',
+                    ),
+                    onTap: () => Navigator.of(sheetContext).pop(scale),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      await theme.setFontScale(selected);
+    }
+  }
 
   void _openVipInfo(BuildContext context) {
     Navigator.of(context).push(
@@ -306,6 +367,14 @@ class SettingsPage extends StatelessWidget {
                       ),
                     ),
                     _SettingsDivider(),
+                    _SettingsTile(
+                      icon: Icons.text_fields_rounded,
+                      iconColor: colorScheme.primary,
+                      title: '字体大小',
+                      subtitle: _fontScaleLabel(theme.fontScale),
+                      onTap: () => _selectFontScale(context, theme),
+                    ),
+                    _SettingsDivider(),
                     _SettingsSwitchTile(
                       icon: Icons.screen_rotation_rounded,
                       iconColor: colorScheme.primary,
@@ -529,10 +598,10 @@ class _SettingsCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Column(children: children),
       ),
     );
@@ -895,7 +964,7 @@ class _CacheManagementSheetState extends State<_CacheManagementSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Row(
                 children: [
@@ -957,7 +1026,7 @@ class _CacheItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         children: [

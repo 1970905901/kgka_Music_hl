@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../design_tokens.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
@@ -558,7 +559,7 @@ class _RhythmGamePageState extends State<RhythmGamePage>
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFFF007F),
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(AppRadius.xs),
                                       boxShadow: const [BoxShadow(color: Color(0xFFFF007F), blurRadius: 8)],
                                     ),
                                     child: const Text(
@@ -618,7 +619,7 @@ class _RhythmGamePageState extends State<RhythmGamePage>
                     const SizedBox(height: 8),
                     // 暴走能量条
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(AppRadius.xs),
                       child: Container(
                         height: 8,
                         color: Colors.white12,
@@ -742,7 +743,7 @@ class _RhythmGamePageState extends State<RhythmGamePage>
                       padding: const EdgeInsets.all(26),
                       decoration: BoxDecoration(
                         color: const Color(0xFF101422),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(AppRadius.xxl),
                         border: Border.all(color: const Color(0xFF00FFCC), width: 1.2),
                         boxShadow: const [
                           BoxShadow(color: Color(0xFF00FFCC), blurRadius: 24, spreadRadius: -4),
@@ -808,7 +809,7 @@ class _RhythmGamePageState extends State<RhythmGamePage>
                                   backgroundColor: Colors.white12,
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14)),
+                                      borderRadius: BorderRadius.circular(AppRadius.lg)),
                                 ),
                                 onPressed: () => Navigator.of(context).pop(),
                                 icon: const Icon(Icons.exit_to_app_rounded),
@@ -821,7 +822,7 @@ class _RhythmGamePageState extends State<RhythmGamePage>
                                   elevation: 8,
                                   shadowColor: const Color(0xFF00FFCC),
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14)),
+                                      borderRadius: BorderRadius.circular(AppRadius.lg)),
                                 ),
                                 onPressed: () {
                                   final initialMs = widget.player.position.inMilliseconds;
@@ -1028,7 +1029,7 @@ class _RhythmGamePainter extends CustomPainter {
             ],
           ).createShader(beamRect);
 
-          canvas.drawRRect(RRect.fromRectAndRadius(beamRect, const Radius.circular(6)), _holdBeamPaint);
+          canvas.drawRRect(RRect.fromRectAndRadius(beamRect, const Radius.circular(AppRadius.xs)), _holdBeamPaint);
         }
       }
 
@@ -1058,7 +1059,7 @@ class _RhythmGamePainter extends CustomPainter {
         if (!node.hit) {
           final haloRect = RRect.fromRectAndRadius(
             Rect.fromCenter(center: Offset(nodeX, startY), width: platformWidth + 8, height: platformHeight + 8),
-            const Radius.circular(12),
+            const Radius.circular(AppRadius.md),
           );
           _glowHaloPaint.color = (node.noteType == NoteType.highPitch
                   ? const Color(0xFFFF007F)

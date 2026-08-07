@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -46,7 +47,7 @@ class MiniPlayer extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: DecoratedBox(
@@ -54,7 +55,7 @@ class MiniPlayer extends StatelessWidget {
                   color: isDark
                       ? colorScheme.surfaceContainerHighest.withValues(alpha: .72)
                       : colorScheme.surfaceContainerHighest.withValues(alpha: .64),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                   border: Border.all(
                     color: colorScheme.outlineVariant.withValues(alpha: .38),
                   ),
@@ -89,11 +90,14 @@ class MiniPlayer extends StatelessWidget {
                                   ),
                                   child: Row(
                                     children: [
-                                      Artwork(
+                                      Hero(
+                                      tag: 'player_cover',
+                                      child: Artwork(
                                         url: song.coverUrl,
                                         size: 48,
                                         borderRadius: 6,
                                       ),
+                                    ),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
@@ -351,7 +355,7 @@ class _QueueTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -360,7 +364,7 @@ class _QueueTile extends StatelessWidget {
           color: active
               ? colorScheme.primary.withValues(alpha: .09)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           children: [

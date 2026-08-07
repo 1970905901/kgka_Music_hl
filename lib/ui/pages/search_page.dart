@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -204,7 +205,7 @@ class _SearchPageState extends State<SearchPage> {
             height: 46,
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest.withValues(alpha: .54),
-              borderRadius: BorderRadius.circular(23),
+              borderRadius: BorderRadius.circular(AppRadius.xxl),
             ),
             child: TextField(
               controller: _controller,
@@ -242,7 +243,7 @@ class _SearchPageState extends State<SearchPage> {
             foregroundColor: colorScheme.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(23),
+              borderRadius: BorderRadius.circular(AppRadius.xxl),
             ),
           ),
           child: const Text(
@@ -292,7 +293,7 @@ class _SearchPageState extends State<SearchPage> {
           height: 42,
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest.withValues(alpha: .54),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
           child: TextField(
             controller: _controller,
@@ -574,7 +575,7 @@ class _PlatformSelector extends StatelessWidget {
                       : colorScheme.surfaceContainerHighest.withValues(
                           alpha: .5,
                         ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
                 ),
                 child: Text(
                   p == _SearchPlatform.kugou ? '酷狗' : '网易云',
@@ -818,9 +819,9 @@ class _CategoryTab extends StatelessWidget {
       color: active
           ? colorScheme.primary
           : colorScheme.surfaceContainerHighest.withValues(alpha: .7),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -893,7 +894,7 @@ class _CategoryKeywordList extends StatelessWidget {
                         rank,
                         colorScheme,
                       ).withValues(alpha: .14),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(AppRadius.xs),
                     ),
                     child: Text(
                       '热',
@@ -1004,7 +1005,7 @@ class _SearchResults extends StatelessWidget {
                 final active = player.currentSong?.hash == song.hash;
                 final activeColor = colorScheme.primary;
                 return InkWell(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   onTap: () => onPlay(song),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
@@ -1016,7 +1017,7 @@ class _SearchResults extends StatelessWidget {
                       color: active
                           ? activeColor.withValues(alpha: .08)
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                     ),
                     child: Row(
                       children: [
@@ -1035,7 +1036,7 @@ class _SearchResults extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     color: Theme.of(context).colorScheme.surface
                                         .withValues(alpha: .88),
-                                    borderRadius: BorderRadius.circular(7),
+                                    borderRadius: BorderRadius.circular(AppRadius.sm),
                                   ),
                                   child: Padding(
                                     padding: const EdgeInsets.all(3),
@@ -1161,7 +1162,7 @@ class _SearchResults extends StatelessWidget {
                                 color: colorScheme.outlineVariant.withValues(
                                   alpha: .5,
                                 ),
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(AppRadius.xs),
                               ),
                               child: Text(
                                 song.source == SongSource.netease
@@ -1245,9 +1246,9 @@ class _HistoryChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: colorScheme.surfaceContainerHighest.withValues(alpha: .6),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.xl),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.only(left: 14, top: 7, bottom: 7, right: 4),
@@ -1309,7 +1310,7 @@ class _CarHotSearchColumn extends StatelessWidget {
             final rank = index + 1;
             return InkWell(
               onTap: () => onTap(item.keyword),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Row(

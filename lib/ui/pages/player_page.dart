@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_lyric/flutter_lyric.dart';
@@ -1378,10 +1379,13 @@ class _PosterPlayerPageState extends State<_PosterPlayerPage>
                 constraints: BoxConstraints(maxWidth: artworkMaxWidth),
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: Artwork(
+                  child: Hero(
+                    tag: 'player_cover',
+                    child: Artwork(
                     url: widget.song.coverUrl,
                     size: double.infinity,
                     borderRadius: 8,
+                  ),
                   ),
                 ),
               ),
@@ -2486,7 +2490,7 @@ class _CommentEntry extends StatelessWidget {
             Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 onTap: () {
                   final mixsongid = song.albumAudioId ?? song.id;
                   if (mixsongid.isEmpty) return;
@@ -2514,7 +2518,7 @@ class _CommentEntry extends StatelessWidget {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(

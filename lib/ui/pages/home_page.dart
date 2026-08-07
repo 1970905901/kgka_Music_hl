@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../widgets/app_feedback.dart';
+import '../widgets/app_section.dart';
+import '../design_tokens.dart';
 
 import '../../config/app_config.dart';
 import '../../controllers/auth_controller.dart';
@@ -403,7 +406,9 @@ class _HomePageState extends State<HomePage> {
               else if (data == null && snapshot.hasError)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _ErrorView(
+                  child: AppErrorView(
+                    title: '暂时连接不上音乐服务',
+                    icon: Icons.wifi_off_rounded,
                     message: snapshot.error.toString(),
                     onRetry: _refresh,
                   ),
@@ -466,15 +471,9 @@ class _HomePageState extends State<HomePage> {
                               onTap: _openPlaylist,
                             ),
                             if (data.topSongs.isNotEmpty)
-                              _SongSection(
-                                title: '新歌速递',
+                              _TopSongRail(
                                 songs: data.topSongs,
-                                onPlay: _playSong,
-                                isLiked: (song) => widget.auth.isLiked(song),
-                                onLikeTap: (song) => widget.auth.toggleLike(song),
-                                auth: widget.auth,
-                                player: widget.player,
-                                onViewArtist: _openArtist,
+                                onPlay: (song) => _playSong(song, data.topSongs),
                               ),
                             if (data.topAlbums.isNotEmpty)
                               _TopAlbumRail(
@@ -891,10 +890,10 @@ class _FeatureCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: gradient),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           child: Stack(
             children: [
               if (imageUrl != null)
@@ -1185,7 +1184,7 @@ class _HomeSongRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
               decoration: BoxDecoration(
                 color: Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
               child: Row(
                 children: [
@@ -1201,7 +1200,7 @@ class _HomeSongRow extends StatelessWidget {
                               color: Theme.of(
                                 context,
                               ).colorScheme.surface.withValues(alpha: .88),
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(3),
@@ -1321,6 +1320,70 @@ class _HomeSongRow extends StatelessWidget {
   }
 }
 
+/// 新歌速递横向区块。
+class _TopSongRail extends StatelessWidget {
+  const _TopSongRail({required this.songs, required this.onPlay});
+
+  final List<Song> songs;
+  final ValueChanged<Song> onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppHorizontalRail<Song>(
+      title: '新歌速递',
+      items: songs,
+      height: 162,
+      itemWidth: 110,
+      topPadding: 20,
+      itemBuilder: (context, song) => _TopSongCard(
+        song: song,
+        onTap: () => onPlay(song),
+      ),
+    );
+  }
+}
+
+class _TopSongCard extends StatelessWidget {
+  const _TopSongCard({required this.song, required this.onTap});
+
+  final Song song;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Artwork(url: song.coverUrl, size: 110),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+          Text(
+            song.artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 新碟上架横向区块。
 class _TopAlbumRail extends StatelessWidget {
   const _TopAlbumRail({required this.albums, required this.onTap});
@@ -1374,14 +1437,14 @@ class _TopAlbumCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: SizedBox(
         width: 120,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: Artwork(url: album.coverUrl, size: 120),
             ),
             const SizedBox(height: 6),
@@ -1407,17 +1470,30 @@ class _TopAlbumCard extends StatelessWidget {
   }
 }
 
-class _PlaylistRail extends StatelessWidget {
+class _PlaylistRail extends StatefulWidget {
   const _PlaylistRail({required this.playlists, required this.onTap});
 
   final List<PlaylistSummary> playlists;
   final ValueChanged<PlaylistSummary> onTap;
 
   @override
+  State<_PlaylistRail> createState() => _PlaylistRailState();
+}
+
+class _PlaylistRailState extends State<_PlaylistRail> {
+  static const _collapsedCount = 6;
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final playlists = widget.playlists;
     if (playlists.isEmpty) {
       return const SizedBox.shrink();
     }
+
+    final visible = _expanded
+        ? playlists
+        : playlists.take(_collapsedCount).toList();
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
@@ -1428,7 +1504,19 @@ class _PlaylistRail extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: _SectionHeader(
               title: '推荐歌单',
-              action: const SizedBox.shrink(),
+              action: playlists.length > _collapsedCount
+                  ? TextButton.icon(
+                      onPressed: () =>
+                          setState(() => _expanded = !_expanded),
+                      icon: Icon(
+                        _expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        size: 18,
+                      ),
+                      label: Text(_expanded ? '收起' : '展开全部'),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
           const SizedBox(height: 12),
@@ -1436,7 +1524,7 @@ class _PlaylistRail extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 18),
-            itemCount: playlists.length,
+            itemCount: visible.length,
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 160,
               mainAxisSpacing: 16,
@@ -1444,10 +1532,10 @@ class _PlaylistRail extends StatelessWidget {
               childAspectRatio: 0.60,
             ),
             itemBuilder: (context, index) {
-              final playlist = playlists[index];
+              final playlist = visible[index];
               return _PlaylistCard(
                 playlist: playlist,
-                onTap: () => onTap(playlist),
+                onTap: () => widget.onTap(playlist),
               );
             },
           ),
@@ -1456,6 +1544,7 @@ class _PlaylistRail extends StatelessWidget {
     );
   }
 }
+
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.title, required this.action});
@@ -1499,7 +1588,7 @@ class _PlaylistCard extends StatelessWidget {
         final size = constraints.maxWidth.isInfinite ? 128.0 : constraints.maxWidth;
 
         return InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1644,7 +1733,9 @@ class _RadioSectionState extends State<_RadioSection> {
           return const _RadioSkeleton();
         }
         if (data == null && snapshot.hasError) {
-          return _ErrorView(
+          return AppErrorView(
+            title: '暂时连接不上音乐服务',
+            icon: Icons.wifi_off_rounded,
             message: snapshot.error.toString(),
             onRetry: _refresh,
           );
@@ -1822,15 +1913,15 @@ class _RadioHeroCard extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 2.08,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         onTap: loading ? null : onTap,
         child: Ink(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -1986,7 +2077,7 @@ class _RadioStationCard extends StatelessWidget {
     return SizedBox(
       width: 128,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         onTap: loading ? null : onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1996,7 +2087,7 @@ class _RadioStationCard extends StatelessWidget {
                 Artwork(url: station.artworkUrl, size: 128, borderRadius: 10),
                 Positioned.fill(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -2283,45 +2374,6 @@ class _SkeletonBox extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
       ),
       child: SizedBox(width: width, height: height),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.wifi_off_rounded,
-            size: 44,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 14),
-          Text('暂时连接不上音乐服务', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('重试'),
-          ),
-        ],
-      ),
     );
   }
 }

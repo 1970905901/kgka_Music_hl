@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/download_controller.dart';
@@ -435,7 +436,7 @@ class _QuickActionCard extends StatelessWidget {
       margin: const EdgeInsets.only(right: 0),
       child: Material(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -505,7 +506,7 @@ class _PlaylistTabBar extends StatelessWidget {
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: AnimatedBuilder(
           animation: controller,
@@ -696,7 +697,7 @@ class _PlaylistTabViewState extends State<_PlaylistTabView> {
                 const SizedBox(height: 12),
                 Material(
                   color: colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
@@ -1060,10 +1061,10 @@ class _PlaylistGroup extends StatelessWidget {
           return DecoratedBox(
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               child: _PlaylistRow(
                 playlist: playlists[i],
                 selected: multiSelectMode && selectedIndices.contains(i),
@@ -1082,10 +1083,10 @@ class _PlaylistGroup extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Column(
           children: [
             for (var i = 0; i < playlists.length; i++) ...[

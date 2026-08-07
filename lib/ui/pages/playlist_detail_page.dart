@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../widgets/app_section.dart';
+import '../widgets/app_feedback.dart';
+import '../design_tokens.dart';
 import 'package:flutter/services.dart';
 
 import '../../config/app_config.dart';
@@ -104,7 +107,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                 const SizedBox(height: 12),
                 Material(
                   color: colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
@@ -611,7 +614,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                 const SizedBox(height: 12),
                 Material(
                   color: colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
@@ -833,7 +836,7 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
               else if (_errorMessage case final message?)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _DetailError(
+                  child: AppErrorView(
                     title: _isAlbum ? '专辑加载失败' : '歌单加载失败',
                     message: message,
                     onRetry: _loadInitial,
@@ -953,41 +956,20 @@ class _SimilarPlaylistsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-            child: Text(
-              '相似歌单',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 170,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              itemCount: playlists.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final playlist = playlists[index];
-                return _SimilarPlaylistCard(
-                  playlist: playlist,
-                  onTap: () => onTap(playlist),
-                );
-              },
-            ),
-          ),
-        ],
+    return AppHorizontalRail<PlaylistSummary>(
+      title: '相似歌单',
+      items: playlists,
+      height: 170,
+      itemWidth: 120,
+      topPadding: 20,
+      itemBuilder: (context, playlist) => _SimilarPlaylistCard(
+        playlist: playlist,
+        onTap: () => onTap(playlist),
       ),
     );
   }
 }
+
 
 class _SimilarPlaylistCard extends StatelessWidget {
   const _SimilarPlaylistCard({required this.playlist, required this.onTap});
@@ -1000,14 +982,14 @@ class _SimilarPlaylistCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: SizedBox(
         width: 120,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: Artwork(url: playlist.coverUrl, size: 120),
             ),
             const SizedBox(height: 6),
@@ -1471,7 +1453,7 @@ class _SongRow extends StatelessWidget {
           final active = player.currentSong?.hash == song.hash;
           final activeColor = colorScheme.primary;
           return InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -1480,7 +1462,7 @@ class _SongRow extends StatelessWidget {
               color: active
                   ? activeColor.withValues(alpha: .09)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Row(
               children: [
@@ -1495,7 +1477,7 @@ class _SongRow extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: .42),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(AppRadius.xs),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -1521,7 +1503,7 @@ class _SongRow extends StatelessWidget {
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: colorScheme.surface.withValues(alpha: .9),
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(3),
@@ -1631,46 +1613,6 @@ class _SongRow extends StatelessWidget {
           ),
         );
         },
-      ),
-    );
-  }
-}
-
-class _DetailError extends StatelessWidget {
-  const _DetailError({
-    required this.title,
-    required this.message,
-    required this.onRetry,
-  });
-
-  final String title;
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline_rounded, size: 42),
-          const SizedBox(height: 12),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('重试'),
-          ),
-        ],
       ),
     );
   }

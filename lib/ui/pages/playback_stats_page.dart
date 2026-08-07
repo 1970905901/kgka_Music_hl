@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_feedback.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/player_controller.dart';
 import '../../services/playback_stats_service.dart';
@@ -87,12 +89,16 @@ class _PlaybackStatsPageState extends State<PlaybackStatsPage> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return _ErrorView(message: '${snapshot.error}');
+              return AppErrorView(message: '${snapshot.error}');
             }
             final stats = snapshot.data ?? const PlaybackStats();
             if (stats.totalPlays == 0 &&
                 stats.totalListenTime == Duration.zero) {
-              return const _EmptyView();
+              return const AppEmptyState(
+      icon: Icons.bar_chart_rounded,
+      title: '暂无播放统计',
+      subtitle: '播放歌曲后会在这里看到统计数据',
+    );
             }
             return _StatsContent(stats: stats);
           },
@@ -215,10 +221,10 @@ class _StatsCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Column(children: children),
       ),
     );
@@ -339,74 +345,6 @@ class _StatsDivider extends StatelessWidget {
           .colorScheme
           .outlineVariant
           .withValues(alpha: .4),
-    );
-  }
-}
-
-class _EmptyView extends StatelessWidget {
-  const _EmptyView();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.bar_chart_rounded,
-              size: 64,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: .5),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '暂无播放统计',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '播放歌曲后会在这里看到统计数据',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48),
-            const SizedBox(height: 12),
-            const Text('加载失败', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 
 import '../../models/app_version.dart';
 import '../../services/app_update_service.dart';
@@ -27,7 +28,7 @@ class AppUpdateBanner extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colorScheme.primary.withValues(alpha: .12),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
           border: Border.all(color: colorScheme.primary.withValues(alpha: .2)),
         ),
         child: Padding(
@@ -320,7 +321,7 @@ class _CodeBlock extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
         text,

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../design_tokens.dart';
 import '../adaptive_layout.dart';
 import '../../controllers/player_controller.dart';
 import '../../controllers/local_music_controller.dart';
@@ -137,7 +138,7 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                       child: Row(
                         children: [
@@ -181,7 +182,7 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
                               )
                             : null,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       ),
@@ -221,7 +222,7 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
                                           Container(
                                             decoration: BoxDecoration(
                                               color: Colors.black.withValues(alpha: 0.4),
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(AppRadius.sm),
                                             ),
                                             child: Center(
                                               child: NowPlayingBadge(

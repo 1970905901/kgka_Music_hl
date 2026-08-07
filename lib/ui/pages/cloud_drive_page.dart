@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../widgets/app_feedback.dart';
+import '../design_tokens.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -201,7 +203,11 @@ class _CloudDrivePageState extends State<CloudDrivePage> {
                   if (_songs.isEmpty)
                     const SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _EmptyState(),
+                      child: AppEmptyState(
+                    icon: Icons.cloud_off_rounded,
+                    title: '云盘里还没有歌曲',
+                    subtitle: '在酷狗概念版 App 上传音乐到云盘后即可在这里播放',
+                  ),
                     )
                   else ...[
                     SliverPadding(
@@ -287,7 +293,7 @@ class _CloudHeader extends StatelessWidget {
                     height: 84,
                     decoration: BoxDecoration(
                       color: colorScheme.primary.withValues(alpha: .15),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
                     ),
                     child: Icon(
                       Icons.cloud_rounded,
@@ -348,7 +354,7 @@ class _CapacityBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(AppRadius.xs),
           child: LinearProgressIndicator(
             value: info.usageRatio,
             minHeight: 6,
@@ -439,7 +445,7 @@ class _CloudSongRow extends StatelessWidget {
         final active = player.currentSong?.hash == song.hash;
         final activeColor = colorScheme.primary;
         return InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
@@ -448,7 +454,7 @@ class _CloudSongRow extends StatelessWidget {
               color: active
                   ? activeColor.withValues(alpha: .09)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Row(
               children: [
@@ -463,7 +469,7 @@ class _CloudSongRow extends StatelessWidget {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: .42),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(AppRadius.xs),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -489,7 +495,7 @@ class _CloudSongRow extends StatelessWidget {
                           child: DecoratedBox(
                             decoration: BoxDecoration(
                               color: colorScheme.surface.withValues(alpha: .9),
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(3),
@@ -587,36 +593,6 @@ class _CloudSongRow extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off_rounded, size: 64, color: colorScheme.outline),
-            const SizedBox(height: 16),
-            Text('云盘里还没有歌曲', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              '在酷狗概念版 App 上传音乐到云盘后即可在这里播放',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
