@@ -20,24 +20,18 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Enable iOS build
+      - name: Setup iOS project
         run: |
-          # 启用 iOS 平台
           flutter config --enable-ios
-          
-          # 清理可能损坏的 iOS 文件
-          rm -rf ios/
-          
-          # 重新创建 iOS 项目（使用当前项目名称）
-          flutter create --platforms=ios .
-          
-          # 检查生成的文件
-          ls -la ios/
+          # 确保 iOS 平台存在，--overwrite 只覆盖必需文件，保留自定义配置
+          flutter create --platforms=ios . --overwrite
+          cd ios
+          pod install
+          cd ..
 
       - name: Build iOS app (unsigned)
         run: |
-          # 让 Flutter 自动处理 pod install
-          flutter build ios --release --no-codesign --verbose
+          flutter build ios --release --no-codesign
 
       - name: Create IPA
         run: |
