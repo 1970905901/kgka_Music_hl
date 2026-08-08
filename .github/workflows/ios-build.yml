@@ -20,13 +20,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Setup iOS project
+      - name: Setup CocoaPods
         run: |
-          flutter config --enable-ios
-          # 确保 iOS 平台存在，--overwrite 只覆盖必需文件，保留自定义配置
-          flutter create --platforms=ios . --overwrite
           cd ios
-          pod install
+          pod install --repo-update
           cd ..
 
       - name: Build iOS app (unsigned)
