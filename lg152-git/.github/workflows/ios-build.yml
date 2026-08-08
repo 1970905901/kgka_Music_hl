@@ -1,0 +1,61 @@
+name: Build iOS IPA for TrollStore
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Unsigned IPA
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Enable iOS build
+        run: |
+          # 启用 iOS 平台
+          flutter config --enable-ios
+          
+          # 清理可能损坏的 iOS 文件
+          rm -rf ios/
+          
+          # 重新创建 iOS 项目（使用当前项目名称）
+          flutter create --platforms=ios .
+          
+          # 检查生成的文件
+          ls -la ios/
+
+      - name: Build iOS app (unsigned)
+        run: |
+          # 让 Flutter 自动处理 pod install
+          flutter build ios --release --no-codesign --verbose
+
+      - name: Create IPA
+        run: |
+          mkdir -p Payload
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            cp -R build/ios/iphoneos/Runner.app Payload/
+            zip -r kgka_music.ipa Payload
+            echo "✅ IPA created successfully!"
+            ls -la kgka_music.ipa
+          else
+            echo "❌ Runner.app not found!"
+            find build -name "*.app" -type d 2>/dev/null || echo "No .app files found"
+            exit 1
+          fi
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: kgka-music-unsigned
+          path: kgka_music.ipa
+          retention-days: 30
