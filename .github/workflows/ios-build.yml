@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          lfs: false
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -20,11 +22,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Setup CocoaPods
+      - name: Recreate iOS project
         run: |
-          cd ios
-          pod install --repo-update
-          cd ..
+          # 完全删除并重建 iOS 项目
+          rm -rf ios/
+          flutter create --platforms=ios .
+          
+          # 添加后台音频权限到 Info.plist
+          cd ios/Runner
+          /usr/libexec/PlistBuddy -c "Add UIBackgroundModes array" Info.plist
+          /usr/libexec/PlistBuddy -c "Add UIBackgroundModes:0 string audio" Info.plist
+          cd ../..
 
       - name: Build iOS app (unsigned)
         run: |
@@ -33,16 +41,9 @@ jobs:
       - name: Create IPA
         run: |
           mkdir -p Payload
-          if [ -d "build/ios/iphoneos/Runner.app" ]; then
-            cp -R build/ios/iphoneos/Runner.app Payload/
-            zip -r kgka_music.ipa Payload
-            echo "✅ IPA created successfully!"
-            ls -la kgka_music.ipa
-          else
-            echo "❌ Runner.app not found!"
-            find build -name "*.app" -type d 2>/dev/null || echo "No .app files found"
-            exit 1
-          fi
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -r kgka_music.ipa Payload
+          echo "✅ IPA created successfully!"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
