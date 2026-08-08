@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- ⬇️ 新增：后台音频播放权限 ⬇️ -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+	<!-- ⬆️ 新增结束 ⬆️ -->
 </dict>
 </plist>
