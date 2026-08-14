@@ -7,7 +7,7 @@ import Foundation
 
 import audio_service
 import audio_session
-import file_picker
+import file_picker_darwin
 import file_selector_macos
 import just_audio
 import shared_preferences_foundation
