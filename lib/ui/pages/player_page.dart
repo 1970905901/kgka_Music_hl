@@ -1919,8 +1919,8 @@ class _LyricViewportState extends State<_LyricViewport>
   }
 }
 
-/// 竖屏歌词页 3D 舞台：还原 HTML 的非线性层级、透视、模糊与上下淡出遮罩。
-/// 行距按每行实际渲染高度动态扩展，长歌词换行后不会压到上一句/下一句。
+/// 竖屏歌词页 3D 舞台：还原 HTML 的非线性层级、透视、模糊与上下淡出遮罩，
+/// 并支持像列表一样上下滑动查看完整歌词。
 class _LyricsStage3D extends StatefulWidget {
   const _LyricsStage3D({
     required this.player,
@@ -1942,14 +1942,14 @@ class _LyricsStage3D extends StatefulWidget {
   State<_LyricsStage3D> createState() => _LyricsStage3DState();
 }
 
-class _LyricsStage3DState extends State<_LyricsStage3D> {
+class _LyricsStage3DState extends State<_LyricsStage3D>
+    with SingleTickerProviderStateMixin {
   static const double _perspective = 1000;
-  static const int _visibleRadius = 8;
   static const double _contentPadding = 20;
-  // 期望同时可见的歌词行数（含上下淡出区域内的行），9 行撑满顶栏以下的高度。
   static const int _desiredVisibleLines = 9;
-  // 换行行与上下句之间的最小视觉间隙。
   static const double _lineGap = 10;
+  static const double _anchorFraction = 260 / 600;
+  static const Curve _followCurve = Cubic(0.16, 1.0, 0.3, 1.0);
 
   // 行高缓存：仅在歌词/显示模式/字号/内容宽度变化时重建。
   final Map<int, double> _heightCache = {};
@@ -1958,6 +1958,87 @@ class _LyricsStage3DState extends State<_LyricsStage3D> {
   bool? _cacheUseRomanization;
   double? _cacheLyricScale;
   double? _cacheContentWidth;
+
+  // 文档布局（每次 build 由视口尺寸重算）。
+  double _viewportHeight = 0;
+  double _contentWidth = 0;
+  double _lineWidth = 0;
+  double _anchorY = 0;
+  double _baseStep = 0;
+  List<double> _docTops = const [];
+  double _docHeight = 0;
+  bool _layoutDirty = true;
+
+  // 滚动：_scrollY 为文档顶部在视口中的位置。
+  late final AnimationController _scrollAnim;
+  late final CurvedAnimation _scrollCurve;
+  double _scrollY = 0;
+  double _scrollFrom = 0;
+  double _scrollTo = 0;
+  bool _isDragging = false;
+  bool _isFollowing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+    );
+    _scrollCurve = CurvedAnimation(parent: _scrollAnim, curve: _followCurve);
+    _scrollAnim.addListener(_onScrollTick);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LyricsStage3D oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.lyrics != widget.lyrics ||
+        oldWidget.showSubtitle != widget.showSubtitle ||
+        oldWidget.useRomanization != widget.useRomanization ||
+        oldWidget.lyricScale != widget.lyricScale) {
+      // 歌词/模式/字号变化：重建布局并回到跟随当前行。
+      _scrollAnim.stop();
+      _isDragging = false;
+      _isFollowing = true;
+      _layoutDirty = true;
+    } else if (oldWidget.activeIndex != widget.activeIndex) {
+      // 播放推进到下一句：跟随模式下非线性平滑滚动到新位置。
+      if (_isFollowing && !_isDragging) {
+        _animateScrollTo(_followTarget);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollAnim.removeListener(_onScrollTick);
+    _scrollCurve.dispose();
+    _scrollAnim.dispose();
+    super.dispose();
+  }
+
+  double get _maxScroll => math.max(0.0, _docHeight - _viewportHeight);
+
+  double get _followTarget {
+    if (_docTops.isEmpty) return 0;
+    final index = widget.activeIndex.clamp(0, _docTops.length - 1);
+    return (_docTops[index] - _anchorY).clamp(0.0, _maxScroll);
+  }
+
+  void _onScrollTick() {
+    if (!mounted) return;
+    setState(() {
+      _scrollY = _scrollFrom + (_scrollTo - _scrollFrom) * _scrollCurve.value;
+    });
+  }
+
+  void _animateScrollTo(double target) {
+    final clamped = target.clamp(0.0, _maxScroll);
+    if ((clamped - _scrollY).abs() < 0.5) return;
+    _scrollFrom = _scrollY;
+    _scrollTo = clamped;
+    _scrollAnim.forward(from: 0);
+  }
 
   TextStyle get _mainStyle => TextStyle(
     fontSize: 38.0 * widget.lyricScale,
@@ -1974,74 +2055,11 @@ class _LyricsStage3DState extends State<_LyricsStage3D> {
 
   /// 单行（主歌词 + 翻译/音译）的整块参考高度，用于判断某行是否换行变高。
   double get _singleLineBlockHeight {
-    var height =
-        _mainStyle.fontSize! * (_mainStyle.height ?? 1.0);
+    var height = _mainStyle.fontSize! * (_mainStyle.height ?? 1.0);
     if (widget.showSubtitle) {
-      height +=
-          6 + _subtitleStyle.fontSize! * (_subtitleStyle.height ?? 1.0);
+      height += 6 + _subtitleStyle.fontSize! * (_subtitleStyle.height ?? 1.0);
     }
     return height;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final viewportHeight = constraints.maxHeight;
-        final contentWidth = constraints.maxWidth - _contentPadding * 2;
-        _ensureCache(contentWidth);
-
-        // 行距按“期望行数撑满可视高度”自适应：最外层歌词落在上下淡出区域，
-        // 仍保持 HTML 的 pow(距离, 0.82) 非线性分布，只叠加用户字号缩放。
-        final halfLines = (_desiredVisibleLines - 1) / 2;
-        final stepHeight =
-            (viewportHeight * 0.42 / math.pow(halfLines, 0.82)).toDouble() *
-            widget.lyricScale;
-        // HTML 中当前行位于 600px 容器内 260px 处（约 43.3%）。
-        final baseOffset = viewportHeight * (260 / 600);
-        final position = widget.player.smoothPosition;
-        final start = math.max(0, widget.activeIndex - _visibleRadius);
-        final end =
-            math.min(widget.lyrics.length - 1, widget.activeIndex + _visibleRadius);
-
-        return ClipRect(
-          child: ShaderMask(
-            // 对应 HTML mask-image: 上下边缘渐变淡出。
-            shaderCallback: (rect) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.transparent,
-                Colors.white,
-                Colors.white,
-                Colors.transparent,
-              ],
-              stops: [0.0, 0.18, 0.82, 1.0],
-            ).createShader(rect),
-            blendMode: BlendMode.srcIn,
-            child: Transform(
-              // 对应 HTML 容器 perspective: 1000px。
-              alignment: Alignment.center,
-              transform: Matrix4.identity()..setEntry(3, 2, -1 / _perspective),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  for (var index = start; index <= end; index++)
-                    _buildLine(
-                      index,
-                      stepHeight,
-                      baseOffset,
-                      position,
-                      contentWidth,
-                      constraints.maxWidth,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   void _ensureCache(double contentWidth) {
@@ -2083,72 +2101,231 @@ class _LyricsStage3DState extends State<_LyricsStage3D> {
     return height;
   }
 
-  double _scaleFor(int distance) {
-    final abs = distance.abs();
-    return distance == 0
-        ? 1.08
-        : math.max(0.55, 1 / (1 + abs * 0.22)).toDouble();
+  /// 文档中相邻两行的间距：普通单行用基础行距（9 行撑满一屏），
+  /// 换行长句按实际高度 + 间隙兜底，避免压到上下句。
+  double _spacing(int a, int b) {
+    final hA = _blockHeight(a, _contentWidth);
+    final hB = _blockHeight(b, _contentWidth);
+    final tallA = hA > _singleLineBlockHeight + 2;
+    final tallB = hB > _singleLineBlockHeight + 2;
+    if (!tallA && !tallB) return _baseStep;
+    // 换行长句不按整块高度完全撑开，否则英文长句（普遍换行成两行）会把
+    // 高亮行与上下行的间距拉得过大；取 80% 高度 + 间隙折中，
+    // 保留基本阅读间距，同时避免文本明显重叠。
+    return math.max(
+      _baseStep,
+      math.max(hA, hB) * 0.8 + _lineGap,
+    ).toDouble();
   }
 
-  /// 相邻两行之间的间距：单行时保持 HTML 的 118/88 非线性行距；
-  /// 任一行换行变高时按实际高度 + 间隙兜底，避免与上下句重叠。
-  double _stepSpacing(
-    int nearIndex,
-    int farIndex,
-    int step,
-    double stepHeight,
-    double contentWidth,
-  ) {
-    final nonlinear = (stepHeight *
-            (math.pow(step.toDouble(), 0.82) -
-                math.pow((step - 1).toDouble(), 0.82)))
-        .toDouble();
-    final nearTall =
-        _blockHeight(nearIndex, contentWidth) > _singleLineBlockHeight + 2;
-    final farTall =
-        _blockHeight(farIndex, contentWidth) > _singleLineBlockHeight + 2;
-    // 普通单行直接使用非线性行距，保证 9 行能撑满屏幕；
-    // 只有换行成多行的长句才按实际高度兜底，避免压到上下句。
-    if (!nearTall && !farTall) {
-      return nonlinear;
+  /// 把所有歌词排成完整文档：首行上方与末行下方各留出锚点距离，
+  /// 保证任意一句都能滚动到 43.3% 的锚点位置。
+  void _computeLayout() {
+    final n = widget.lyrics.length;
+    _docTops = List<double>.filled(n, 0);
+    var top = _anchorY;
+    for (var i = 0; i < n; i++) {
+      _docTops[i] = top;
+      if (i + 1 < n) {
+        top += _spacing(i, i + 1);
+      }
     }
-    final nearHeight = _blockHeight(nearIndex, contentWidth) *
-        _scaleFor(nearIndex - widget.activeIndex);
-    final farHeight =
-        _blockHeight(farIndex, contentWidth) * _scaleFor(farIndex - widget.activeIndex);
-    return math.max(nonlinear, math.max(nearHeight, farHeight) + _lineGap)
-        .toDouble();
+    _docHeight = n == 0
+        ? _viewportHeight
+        : top + _blockHeight(n - 1, _contentWidth) + (_viewportHeight - _anchorY);
   }
 
-  /// 从当前行向外累计间距，得到该行的纵向偏移。
-  double _offsetY(
-    int distance,
-    double baseOffset,
-    double stepHeight,
-    double contentWidth,
-  ) {
-    if (distance == 0) return baseOffset;
-    final dir = distance < 0 ? -1 : 1;
-    var offset = 0.0;
-    for (var k = 1; k <= distance.abs(); k++) {
-      final near = widget.activeIndex + dir * (k - 1);
-      final far = widget.activeIndex + dir * k;
-      offset += _stepSpacing(near, far, k, stepHeight, contentWidth);
+  int _firstVisibleIndex(double threshold) {
+    final n = widget.lyrics.length;
+    var lo = 0;
+    var hi = n;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_docTops[mid] + _blockHeight(mid, _contentWidth) <= threshold) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
     }
-    return baseOffset + dir * offset;
+    return lo;
   }
 
-  Widget _buildLine(
-    int index,
-    double stepHeight,
-    double baseOffset,
-    Duration position,
-    double contentWidth,
-    double lineWidth,
-  ) {
-    final distance = index - widget.activeIndex;
-    final placement = _placementFor(distance, stepHeight, baseOffset, contentWidth);
+  void _onVerticalDragStart(DragStartDetails details) {
+    _scrollAnim.stop();
+    _isDragging = true;
+    setState(() {});
+  }
+
+  void _onVerticalDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _scrollY = (_scrollY - details.delta.dy).clamp(0.0, _maxScroll);
+    });
+  }
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    _isDragging = false;
+    final diff = (_scrollY - _followTarget).abs();
+    _isFollowing = diff < _baseStep * 0.6;
+    if (_isFollowing) {
+      _animateScrollTo(_followTarget);
+    }
+    setState(() {});
+  }
+
+  void _onVerticalDragCancel() {
+    _isDragging = false;
+    setState(() {});
+  }
+
+  void _backToCurrent() {
+    _isFollowing = true;
+    _animateScrollTo(_followTarget);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final lyrics = widget.lyrics;
+        _viewportHeight = constraints.maxHeight;
+        _contentWidth = constraints.maxWidth - _contentPadding * 2;
+        _lineWidth = constraints.maxWidth;
+        _anchorY = _viewportHeight * _anchorFraction;
+        _ensureCache(_contentWidth);
+
+        // 行距：9 行撑满顶栏以下的可视高度，保持 pow(距离, 0.82) 的层次。
+        final halfLines = (_desiredVisibleLines - 1) / 2;
+        _baseStep =
+            (constraints.maxHeight * 0.42 / math.pow(halfLines, 0.82))
+                    .toDouble() *
+                widget.lyricScale;
+
+        _computeLayout();
+
+        if (_layoutDirty) {
+          _layoutDirty = false;
+          _scrollY = _followTarget;
+        }
+
+        if (lyrics.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final start = _firstVisibleIndex(_scrollY - 160);
+        final endY = _scrollY + _viewportHeight + 160;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragStart: _onVerticalDragStart,
+          onVerticalDragUpdate: _onVerticalDragUpdate,
+          onVerticalDragEnd: _onVerticalDragEnd,
+          onVerticalDragCancel: _onVerticalDragCancel,
+          child: ClipRect(
+            child: Stack(
+              children: [
+                ShaderMask(
+                  // 对应 HTML mask-image: 上下边缘渐变淡出。
+                  shaderCallback: (rect) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.white,
+                      Colors.white,
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.18, 0.82, 1.0],
+                  ).createShader(rect),
+                  blendMode: BlendMode.srcIn,
+                  child: Transform(
+                    // 对应 HTML 容器 perspective: 1000px。
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, -1 / _perspective),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        for (var index = start;
+                            index < lyrics.length &&
+                                _docTops[index] <= endY;
+                            index++)
+                          _buildLine(index),
+                      ],
+                    ),
+                  ),
+                ),
+                // 滚动位置指示条
+                if (_docHeight > _viewportHeight)
+                  Positioned(
+                    left: 3,
+                    top: _scrollIndicatorTop,
+                    child: Container(
+                      width: 3,
+                      height: _scrollIndicatorHeight,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .35),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                // 浏览状态下的“回到当前歌词”按钮（与放大/缩小歌词同款玻璃圆钮）
+                if (!_isFollowing)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 8,
+                    child: Center(
+                      child: _GlassIconButton(
+                        tooltip: '回到当前歌词',
+                        onPressed: _backToCurrent,
+                        icon: Icons.my_location_rounded,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  double get _scrollIndicatorHeight {
+    final height = _viewportHeight * _viewportHeight / _docHeight;
+    return height.clamp(24.0, _viewportHeight - 16);
+  }
+
+  double get _scrollIndicatorTop {
+    if (_maxScroll <= 0) return _anchorY;
+    final free = _viewportHeight - _scrollIndicatorHeight;
+    return (_scrollY / _maxScroll) * free;
+  }
+
+  Widget _buildLine(int index) {
     final line = widget.lyrics[index];
+    final screenY = _docTops[index] - _scrollY;
+    final distance = (screenY - _anchorY) / _baseStep;
+    final abs = distance.abs();
+    final placement = _LinePlacement(
+      y: screenY,
+      // translateZ = -abs * 40
+      translateZ: -abs * 40.0,
+      // rotateX = distance * -2.5deg
+      rotateX: distance * -2.5,
+      // scale: 锚点行 1.04，其余 max(0.55, 1 / (1 + abs * 0.16))，
+      // 缩小高亮行与普通行的大小差，避免差距过大。
+      scale: abs < 0.01
+          ? 1.04
+          : math.max(0.55, 1 / (1 + abs * 0.16)).toDouble(),
+      // opacity: 锚点行 1，其余 max(0.04, pow(0.52, abs))
+      opacity: abs < 0.01
+          ? 1.0
+          : math.max(0.04, math.pow(0.52, abs).toDouble()).toDouble(),
+      // blur: 锚点行 0，其余 min(pow(abs, 1.3) * 1.2, 7)
+      blur: abs < 0.01
+          ? 0.0
+          : math.min(math.pow(abs, 1.3) * 1.2, 7.0).toDouble(),
+    );
     final subtitle = widget.useRomanization ? line.romanization : line.translation;
     final hasSubtitle =
         widget.showSubtitle && subtitle != null && subtitle.isNotEmpty;
@@ -2158,50 +2335,26 @@ class _LyricsStage3DState extends State<_LyricsStage3D> {
       left: 0,
       top: 0,
       child: SizedBox(
-        width: lineWidth,
+        width: _lineWidth,
         child: _LyricLine3D(
           placement: placement,
-          distance: distance,
+          absDistance: abs,
+          animateTransition: !_isDragging && !_scrollAnim.isAnimating,
           text: line.text,
           subtitle: hasSubtitle ? subtitle : null,
           mainStyle: _mainStyle,
           subtitleStyle: _subtitleStyle,
-          progress: _lineProgress(index, position),
-          isActive: distance == 0,
-          isPast: distance < 0,
+          progress: _lineProgress(index),
+          isActive: index == widget.activeIndex,
+          isPast: index < widget.activeIndex,
           onTap: () => widget.player.seek(line.time),
         ),
       ),
     );
   }
 
-  _LinePlacement _placementFor(
-    int distance,
-    double stepHeight,
-    double baseOffset,
-    double contentWidth,
-  ) {
-    final abs = distance.abs();
-    return _LinePlacement(
-      y: _offsetY(distance, baseOffset, stepHeight, contentWidth),
-      // translateZ = -abs * 40
-      translateZ: -abs * 40.0,
-      // rotateX = distance * -2.5deg
-      rotateX: distance * -2.5,
-      // scale: 当前行 1.08，其余 max(0.55, 1 / (1 + abs * 0.22))
-      scale: _scaleFor(distance),
-      // opacity: 当前行 1，其余 max(0.04, pow(0.52, abs))
-      opacity: distance == 0
-          ? 1.0
-          : math.max(0.04, math.pow(0.52, abs).toDouble()).toDouble(),
-      // blur: 当前行 0，其余 min(pow(abs, 1.3) * 1.2, 7)（比 HTML 原版更轻，保证可读）
-      blur: distance == 0
-          ? 0.0
-          : math.min(math.pow(abs.toDouble(), 1.3) * 1.2, 7.0).toDouble(),
-    );
-  }
-
-  double _lineProgress(int index, Duration position) {
+  double _lineProgress(int index) {
+    final position = widget.player.smoothPosition;
     final line = widget.lyrics[index];
     final startMs = line.time.inMilliseconds;
     final explicitMs = line.duration?.inMilliseconds ?? 0;
@@ -2227,7 +2380,8 @@ class _LyricsStage3DState extends State<_LyricsStage3D> {
 class _LyricLine3D extends StatefulWidget {
   const _LyricLine3D({
     required this.placement,
-    required this.distance,
+    required this.absDistance,
+    required this.animateTransition,
     required this.text,
     required this.subtitle,
     required this.mainStyle,
@@ -2239,7 +2393,8 @@ class _LyricLine3D extends StatefulWidget {
   });
 
   final _LinePlacement placement;
-  final int distance;
+  final double absDistance;
+  final bool animateTransition;
   final String text;
   final String? subtitle;
   final TextStyle mainStyle;
@@ -2282,10 +2437,17 @@ class _LyricLine3DState extends State<_LyricLine3D>
   void didUpdateWidget(covariant _LyricLine3D oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.placement != widget.placement) {
-      // 从中断时的当前值平滑过渡到新位置。
-      _from = _LinePlacementTween(begin: _from, end: _to).lerp(_curved.value);
-      _to = widget.placement;
-      _controller.forward(from: 0);
+      if (widget.animateTransition) {
+        // 离散变化（模式/字号/歌词切换）：从中断时的当前值平滑过渡。
+        _from = _LinePlacementTween(begin: _from, end: _to).lerp(_curved.value);
+        _to = widget.placement;
+        _controller.forward(from: 0);
+      } else {
+        // 滚动/跟随动画期间：直接落在目标位置，避免逐帧重启过渡造成拖影。
+        _from = widget.placement;
+        _to = widget.placement;
+        _controller.value = 1.0;
+      }
     }
   }
 
@@ -2340,7 +2502,7 @@ class _LyricLine3DState extends State<_LyricLine3D>
           );
 
           // 较远且几乎不可见的行不做高斯模糊，降低逐帧渲染开销。
-          if (animated.blur >= 0.5 && widget.distance.abs() <= 4) {
+          if (animated.blur >= 0.5 && widget.absDistance <= 4) {
             content = ImageFiltered(
               imageFilter: ImageFilter.blur(
                 sigmaX: animated.blur,

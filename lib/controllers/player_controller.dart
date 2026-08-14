@@ -178,6 +178,9 @@ class PlayerController extends ChangeNotifier {
   StreamSubscription<Set<AudioDevice>>? _devicesSub;
   Set<AudioDevice>? _previousDevices;
   final Stopwatch _positionClock = Stopwatch();
+  // 平滑位置的上一次取值：用于过滤位置流的小幅倒退（音频缓冲/时钟抖动），
+  // 避免歌词高亮和卡拉OK进度出现回跳。seek/换歌的大跨度回退会重建基线。
+  Duration _lastSmoothPosition = Duration.zero;
   final _random = math.Random();
   /// 高潮试听结束时间（播放到该时间自动暂停）。
   Duration? _climaxEndTime;
@@ -263,17 +266,29 @@ class PlayerController extends ChangeNotifier {
   }
 
   Duration get smoothPosition {
+    final raw = _isScrubbing
+        ? position
+        : (!isPlaying ? position : position + _positionClock.elapsed);
+    var value = raw;
+    if (value < Duration.zero) {
+      value = Duration.zero;
+    } else if (duration > Duration.zero && value > duration) {
+      value = duration;
+    }
     if (_isScrubbing) {
-      return position;
+      // 拖动进度条时位置必须严格跟随手指。
+      _lastSmoothPosition = value;
+      return value;
     }
-    if (!isPlaying) {
-      return position;
+    if (value < _lastSmoothPosition) {
+      if (_lastSmoothPosition - value > const Duration(milliseconds: 250)) {
+        // 明显回退：视为 seek 或切歌，直接重建基线。
+        _lastSmoothPosition = value;
+      }
+    } else {
+      _lastSmoothPosition = value;
     }
-    final value = position + _positionClock.elapsed;
-    if (duration > Duration.zero && value > duration) {
-      return duration;
-    }
-    return value;
+    return _lastSmoothPosition;
   }
 
   int get currentIndex {

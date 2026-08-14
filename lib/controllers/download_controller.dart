@@ -11,6 +11,27 @@ import '../services/music_api.dart';
 /// 下载状态枚举。
 enum DownloadStatus { notDownloaded, downloading, downloaded, failed }
 
+/// 批量下载结果统计。
+class BatchDownloadResult {
+  const BatchDownloadResult({
+    required this.enqueued,
+    required this.skipped,
+    required this.failed,
+  });
+
+  /// 成功加入下载队列的歌曲数。
+  final int enqueued;
+
+  /// 跳过的歌曲数（已下载或已在下载中）。
+  final int skipped;
+
+  /// 加入队列失败（无播放地址/网络错误）的歌曲数。
+  final int failed;
+
+  /// 已加入队列（含已下载与失败）的总处理数量。
+  int get total => enqueued + skipped + failed;
+}
+
 /// 下载条目。
 class DownloadEntry {
   const DownloadEntry({
@@ -265,10 +286,103 @@ class DownloadController extends ChangeNotifier {
       if (playUrl.url.isEmpty) {
         throw Exception('这首歌暂时没有可播放地址');
       }
+      await _transfer(song, quality, playUrl.url);
+    } catch (error) {
+      _downloads[hash] = DownloadEntry(
+        song: song,
+        quality: quality,
+        status: DownloadStatus.failed,
+        error: error.toString(),
+      );
+      notifyListeners();
+    }
+  }
+
+  /// 批量下载：把一组歌曲一次性加入现有下载队列。
+  ///
+  /// - 已下载、正在下载的歌曲自动跳过；
+  /// - 播放地址解析失败或无地址的歌曲进入失败列表，可单独重试；
+  /// - 地址解析采用有限并发（4 路），避免一次性发起大量请求；
+  /// - 文件传输复用 [DownloadService] 的并发队列（上限
+  ///   [AppConfig.maxConcurrentDownloads]），支持进度与断点续传。
+  Future<BatchDownloadResult> enqueueBatch(
+    List<Song> songs,
+    AudioQuality quality,
+  ) async {
+    const urlConcurrency = 4;
+    var enqueued = 0;
+    var skipped = 0;
+    var failed = 0;
+    var cursor = 0;
+
+    Future<void> worker() async {
+      while (cursor < songs.length) {
+        final song = songs[cursor++];
+        final hash = song.hash;
+        final existing = _downloads[hash];
+        if (existing?.status == DownloadStatus.downloading ||
+            existing?.status == DownloadStatus.downloaded) {
+          skipped++;
+          continue;
+        }
+
+        _downloads[hash] = DownloadEntry(
+          song: song,
+          quality: quality,
+          status: DownloadStatus.downloading,
+          progress: 0,
+        );
+        notifyListeners();
+
+        try {
+          final playUrl = await _api.songUrl(song, quality: quality);
+          if (playUrl.url.isEmpty) {
+            _downloads[hash] = DownloadEntry(
+              song: song,
+              quality: quality,
+              status: DownloadStatus.failed,
+              error: '这首歌暂时没有可播放地址',
+            );
+            notifyListeners();
+            failed++;
+            continue;
+          }
+          enqueued++;
+          unawaited(_transfer(song, quality, playUrl.url));
+        } catch (error) {
+          _downloads[hash] = DownloadEntry(
+            song: song,
+            quality: quality,
+            status: DownloadStatus.failed,
+            error: error.toString(),
+          );
+          notifyListeners();
+          failed++;
+        }
+      }
+    }
+
+    final workerCount = songs.length < urlConcurrency
+        ? songs.length
+        : urlConcurrency;
+    await Future.wait(
+      [for (var i = 0; i < workerCount; i++) worker()],
+    );
+    return BatchDownloadResult(
+      enqueued: enqueued,
+      skipped: skipped,
+      failed: failed,
+    );
+  }
+
+  /// 文件传输（播放地址已解析）。成功后写入已下载索引，失败进入失败列表。
+  Future<void> _transfer(Song song, AudioQuality quality, String url) async {
+    final hash = song.hash;
+    try {
       final path = await _service.download(
         song: song,
         quality: quality,
-        url: playUrl.url,
+        url: url,
         onProgress: (received, total) {
           final progress = total > 0 ? received / total : 0.0;
           final entry = _downloads[hash];
@@ -297,6 +411,14 @@ class DownloadController extends ChangeNotifier {
       );
       notifyListeners();
     }
+  }
+
+  /// 移除一条失败记录（从失败列表清除）。
+  void removeFailed(Song song) {
+    final entry = _downloads[song.hash];
+    if (entry?.status != DownloadStatus.failed) return;
+    _downloads.remove(song.hash);
+    notifyListeners();
   }
 
   /// 取消下载。

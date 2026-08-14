@@ -990,7 +990,9 @@ List<LyricLine> parseLyrics(String? content) {
       .replaceAll(r'\r\n', '\n')
       .replaceAll(r'\n', '\n');
   final krcLines = _parseKrc(normalized);
-  final parsed = krcLines.isNotEmpty ? krcLines : _parseLrc(normalized);
+  final parsed = krcLines.isNotEmpty
+      ? krcLines
+      : _mergeSameTimeTranslation(_parseLrc(normalized));
   if (parsed.isEmpty) {
     return const [];
   }
@@ -999,6 +1001,32 @@ List<LyricLine> parseLyrics(String? content) {
     originalContent: normalized,
   );
   return _mergeLyricVariants(parsed, variants);
+}
+
+/// 合并同一时间戳的相邻歌词行。
+///
+/// LRC 歌词常见的“原文 + 翻译”写法是两行共用同一个时间戳，
+/// 不合并的话翻译会被当成独立的歌词行（有自己独立的卡拉OK进度），
+/// 导致原文瞬间被跳过、翻译进度对不上。这里把第二行并入第一行的
+/// [LyricLine.translation]，与 KRC language 标签的处理保持一致。
+List<LyricLine> _mergeSameTimeTranslation(List<LyricLine> lines) {
+  if (lines.length < 2) {
+    return lines;
+  }
+  final merged = <LyricLine>[];
+  for (final line in lines) {
+    final last = merged.isNotEmpty ? merged.last : null;
+    if (last != null &&
+        last.translation == null &&
+        last.romanization == null &&
+        line.time == last.time &&
+        !_sameLyricText(last.text, line.text)) {
+      merged[merged.length - 1] = last.copyWith(translation: line.text);
+      continue;
+    }
+    merged.add(line);
+  }
+  return merged;
 }
 
 List<LyricLine> _parseKrc(String content) {

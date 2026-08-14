@@ -102,6 +102,8 @@ class _DownloadedList extends StatelessWidget {
             entries.where((e) => e.status == DownloadStatus.downloaded).toList();
         final downloading =
             entries.where((e) => e.status == DownloadStatus.downloading).toList();
+        final failed =
+            entries.where((e) => e.status == DownloadStatus.failed).toList();
 
         if (entries.isEmpty) {
           return _emptyState(context, '还没有已下载歌曲', '下载歌曲后可离线播放');
@@ -147,6 +149,20 @@ class _DownloadedList extends StatelessWidget {
                 ),
               ),
               ...downloading.map((entry) => _DownloadingRow(entry: entry)),
+            ],
+            if (failed.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+                child: Text(
+                  '下载失败 ${failed.length} 首',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                ),
+              ),
+              ...failed.map(
+                (entry) => _FailedRow(entry: entry, downloads: downloads),
+              ),
             ],
           ],
         );
@@ -354,6 +370,52 @@ class _DownloadingRow extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 下载失败行（可重试或移除）。
+class _FailedRow extends StatelessWidget {
+  const _FailedRow({required this.entry, required this.downloads});
+
+  final DownloadEntry entry;
+  final DownloadController downloads;
+
+  @override
+  Widget build(BuildContext context) {
+    final song = entry.song;
+    final colorScheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Artwork(url: song.coverUrl, size: 48, borderRadius: 8),
+      title: Text(
+        song.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        entry.error ?? '下载失败',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: colorScheme.error.withValues(alpha: .85),
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: '重新下载',
+            icon: const Icon(Icons.refresh_rounded),
+            color: colorScheme.primary,
+            onPressed: () => downloads.download(song, entry.quality),
+          ),
+          IconButton(
+            tooltip: '移除',
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => downloads.removeFailed(song),
+          ),
+        ],
       ),
     );
   }

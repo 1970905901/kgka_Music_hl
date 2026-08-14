@@ -69,6 +69,19 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
   String _searchQuery = '';
   _SongSortMode _sortMode = _SongSortMode.defaultOrder;
 
+  /// 多选模式（用于批量下载）。
+  bool _selectionMode = false;
+  final Set<String> _selectedHashes = {};
+  bool _batchDownloading = false;
+
+  /// 自动定位当前播放歌曲相关状态。
+  bool _autoLocateDone = false;
+  bool _isLocating = false;
+  int? _locateTargetIndex;
+  final GlobalKey _locateRowKey = GlobalKey();
+
+  int get _selectedCount => _selectedHashes.length;
+
   String get _sortModeLabel {
     return switch (_sortMode) {
       _SongSortMode.defaultOrder => '默认排序',
@@ -200,8 +213,15 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     }
   }
 
-  Future<void> _loadAllSongs() async {
-    if (_isLoadingAllSongs || _allSongsLoaded) return;
+  Future<void>? _allSongsFuture;
+
+  /// 加载完整歌单（已加载/正在加载时复用同一个 Future）。
+  Future<void> _loadAllSongs() {
+    if (_allSongsLoaded) return Future.value();
+    return _allSongsFuture ??= _fetchAllSongs();
+  }
+
+  Future<void> _fetchAllSongs() async {
     setState(() => _isLoadingAllSongs = true);
     try {
       final id = _isAlbum
@@ -256,6 +276,115 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       });
     } catch (_) {
       if (mounted) setState(() => _isLoadingAllSongs = false);
+    } finally {
+      _allSongsFuture = null;
+    }
+  }
+
+  /// 多选模式下，确保完整歌单已加载（全选/反选需针对整个歌单）。
+  Future<void> _ensureAllSongsForSelection() async {
+    if (_allSongsLoaded || !_hasMore) return;
+    Toast.info('正在加载完整歌单…');
+    await _loadAllSongs();
+    if (!mounted) return;
+    if (!_allSongsLoaded) {
+      Toast.error('完整歌单加载失败，仅对已加载的歌曲生效');
+    }
+  }
+
+  void _enterSelectionMode() {
+    if (_filteredSongs.isEmpty) {
+      Toast.info('歌单还没有歌曲');
+      return;
+    }
+    setState(() {
+      _selectionMode = true;
+      _selectedHashes.clear();
+      _batchDownloading = false;
+    });
+  }
+
+  void _exitSelectionMode() {
+    if (!_selectionMode) return;
+    setState(() {
+      _selectionMode = false;
+      _selectedHashes.clear();
+    });
+  }
+
+  void _toggleSongSelection(Song song) {
+    setState(() {
+      if (!_selectedHashes.add(song.hash)) {
+        _selectedHashes.remove(song.hash);
+      }
+    });
+  }
+
+  bool get _isAllSelected =>
+      _songs.isNotEmpty && _songs.every((s) => _selectedHashes.contains(s.hash));
+
+  /// 全选 / 取消全选（针对完整歌单）。
+  Future<void> _toggleSelectAll() async {
+    await _ensureAllSongsForSelection();
+    if (!mounted) return;
+    setState(() {
+      if (_isAllSelected) {
+        _selectedHashes.clear();
+      } else {
+        _selectedHashes.addAll(_songs.map((s) => s.hash));
+      }
+    });
+  }
+
+  /// 反选（针对完整歌单）。
+  Future<void> _toggleInvertSelection() async {
+    await _ensureAllSongsForSelection();
+    if (!mounted) return;
+    setState(() {
+      for (final song in _songs) {
+        if (!_selectedHashes.add(song.hash)) {
+          _selectedHashes.remove(song.hash);
+        }
+      }
+    });
+  }
+
+  /// 把选中的歌曲批量加入下载队列。
+  Future<void> _downloadSelected() async {
+    final downloads = widget.player.downloadController;
+    if (downloads == null) {
+      Toast.error('下载功能不可用');
+      return;
+    }
+    if (_batchDownloading) return;
+    final selected =
+        _songs.where((s) => _selectedHashes.contains(s.hash)).toList();
+    if (selected.isEmpty) {
+      Toast.info('请先选择歌曲');
+      return;
+    }
+
+    setState(() => _batchDownloading = true);
+    try {
+      final result =
+          await downloads.enqueueBatch(selected, widget.player.audioQuality);
+      final parts = <String>['已加入下载队列 ${result.enqueued} 首'];
+      if (result.skipped > 0) {
+        parts.add('已跳过 ${result.skipped} 首（已下载/下载中）');
+      }
+      if (result.failed > 0) {
+        parts.add('失败 ${result.failed} 首');
+      }
+      Toast.success(parts.join('，'));
+    } catch (_) {
+      Toast.error('加入下载队列失败');
+    } finally {
+      if (mounted) {
+        setState(() => _batchDownloading = false);
+      }
+    }
+    if (mounted) {
+      _exitSelectionMode();
     }
   }
 
@@ -389,16 +518,19 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
       }
     } catch (error) {
       if (!mounted) return;
-      if (cached != null) {
-        // 有缓存数据，保持不报错（降级）
+      if (cached == null) {
+        setState(() {
+          _errorMessage = error.toString();
+          _isInitialLoading = false;
+        });
         return;
       }
-      setState(() {
-        _errorMessage = error.toString();
-        _isInitialLoading = false;
-      });
+      // 有缓存数据，保持不报错（降级），继续走自动定位。
     }
     unawaited(_loadSimilarPlaylists());
+    if (widget.player.currentSong != null) {
+      unawaited(_autoLocateCurrentSong());
+    }
   }
 
   /// 加载相似歌单（增强展示，失败静默忽略）。
@@ -431,9 +563,15 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
     return true;
   }
 
-  Future<void> _loadMore() async {
-    if (_isLoadingMore || !_hasMore) return;
+  Future<void>? _loadMoreFuture;
 
+  /// 加载下一页（进行中的请求复用同一个 Future）。
+  Future<void> _loadMore() {
+    if (!_hasMore) return Future.value();
+    return _loadMoreFuture ??= _fetchMore();
+  }
+
+  Future<void> _fetchMore() async {
     setState(() {
       _isLoadingMore = true;
       _loadMoreError = null;
@@ -468,7 +606,126 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
         _loadMoreError = error.toString();
         _isLoadingMore = false;
       });
+    } finally {
+      _loadMoreFuture = null;
     }
+  }
+
+  /// 打开页面时自动定位到当前播放的歌曲（滚动到其所在行）。
+  ///
+  /// 当前歌曲尚未加载（分页懒加载）时：若播放队列与当前歌单匹配
+  /// （已加载歌曲全部属于当前队列），逐页加载直到找到；否则不再额外请求，
+  /// 避免打开任意歌单都触发全量加载。
+  Future<void> _autoLocateCurrentSong() async {
+    if (_autoLocateDone || _isLocating) return;
+    final current = widget.player.currentSong;
+    if (current == null) return;
+    _autoLocateDone = true;
+    _isLocating = true;
+    try {
+      var index = _filteredSongs.indexWhere((s) => s.hash == current.hash);
+      if (index < 0 && _queueMatchesThisPlaylist()) {
+        // 逐页加载直到找到（上限 24 页，异常情况不再继续）
+        var pages = 0;
+        while (index < 0 &&
+            pages++ < 24 &&
+            _hasMore &&
+            _loadMoreError == null) {
+          await _loadMore();
+          if (!mounted) return;
+          index = _filteredSongs.indexWhere((s) => s.hash == current.hash);
+        }
+      }
+      if (index >= 0 && mounted) {
+        await _scrollToSong(index);
+      }
+    } finally {
+      _isLocating = false;
+    }
+  }
+
+  /// 当前播放队列是否「像」来自本歌单：已加载歌曲全部属于当前队列。
+  ///
+  /// 在本歌单内点播放时队列即完整歌单，此判断可避免在其他歌单页面
+  /// 触发无意义的全量加载。
+  bool _queueMatchesThisPlaylist() {
+    final queueHashes = widget.player.queue.map((s) => s.hash).toSet();
+    if (queueHashes.isEmpty || _songs.isEmpty) return false;
+    return _songs.every((s) => queueHashes.contains(s.hash));
+  }
+
+  /// 滚动到展示列表中 [displayIndex] 所在行：先按固定行高估算偏移跳转，
+  /// 再用目标行 key 精确校正（兼容字体缩放等导致的估算误差）。
+  Future<void> _scrollToSong(int displayIndex) async {
+    if (displayIndex < 0 || displayIndex >= _filteredSongs.length) return;
+    if (!_scrollController.hasClients) {
+      // 等待首帧布局完成（内容刚加载完时 ScrollView 可能尚未 attach）
+      for (var i = 0; i < 20 && !_scrollController.hasClients && mounted; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      if (!mounted || !_scrollController.hasClients) return;
+    }
+
+    final topInset = MediaQuery.paddingOf(context).top;
+    // 折叠后 SliverAppBar 工具栏高度 + _Actions 操作行（含 padding）+
+    // 列表顶部 padding；歌曲行高 68 + 分隔 2。
+    const actionsHeight = 70.0;
+    const listTopPadding = 4.0;
+    const rowExtent = 70.0;
+    final targetOffset = kToolbarHeight +
+        topInset +
+        actionsHeight +
+        listTopPadding +
+        displayIndex * rowExtent;
+
+    setState(() => _locateTargetIndex = displayIndex);
+
+    final position = _scrollController.position;
+    _scrollController.jumpTo(targetOffset.clamp(0.0, position.maxScrollExtent));
+
+    // 精确校正：定位行 key 一旦构建，用 ensureVisible 对齐到视口上 1/4 处。
+    // 估算偏移与真实偏移存在误差（字体缩放等）时，向后/向前各探测一屏。
+    var probe = 0; // 0=未探测 1=已向后探测 2=已双向探测
+    for (var attempt = 0; attempt < 10; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final rowContext = _locateRowKey.currentContext;
+      if (rowContext != null && rowContext.mounted) {
+        await Scrollable.ensureVisible(
+          rowContext,
+          alignment: 0.25,
+          duration: const Duration(milliseconds: 220),
+        );
+        if (mounted) setState(() => _locateTargetIndex = null);
+        return;
+      }
+      final currentPosition = _scrollController.position;
+      final remaining = targetOffset - currentPosition.pixels;
+      if (remaining.abs() > 4) {
+        // 尚未到达估算位置：直接跳到估算偏移
+        _scrollController.jumpTo(
+          (currentPosition.pixels + remaining)
+              .clamp(0.0, currentPosition.maxScrollExtent),
+        );
+        continue;
+      }
+      if (probe == 0) {
+        probe = 1;
+        _scrollController.jumpTo(
+          (currentPosition.pixels - currentPosition.viewportDimension * 0.9)
+              .clamp(0.0, currentPosition.maxScrollExtent),
+        );
+      } else if (probe == 1) {
+        probe = 2;
+        _scrollController.jumpTo(
+          (currentPosition.pixels + currentPosition.viewportDimension * 0.9)
+              .clamp(0.0, currentPosition.maxScrollExtent),
+        );
+      } else {
+        break;
+      }
+    }
+    if (mounted) setState(() => _locateTargetIndex = null);
   }
 
   PlaylistSummary get _currentPlaylist => _info ?? widget.playlist;
@@ -780,7 +1037,12 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                         ),
                       ),
                 actions: [
-                  if (!_isSearching) ...[
+                  if (_selectionMode)
+                    TextButton(
+                      onPressed: _exitSelectionMode,
+                      child: const Text('取消'),
+                    )
+                  else if (!_isSearching) ...[
                     IconButton(
                       tooltip: '搜索',
                       onPressed: _toggleSearch,
@@ -863,6 +1125,11 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     searchResultCount: _searchQuery.isNotEmpty
                         ? _filteredSongs.length
                         : null,
+                    selectionMode: _selectionMode,
+                    selectedCount: _selectedCount,
+                    onSelectTap: _filteredSongs.isEmpty
+                        ? null
+                        : _enterSelectionMode,
                   ),
                 ),
                 if (_isLoadingAllSongs)
@@ -891,10 +1158,16 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                       itemBuilder: (context, index) {
                         final song = _filteredSongs[index];
                         return _SongRow(
+                          key: _locateTargetIndex == index
+                              ? _locateRowKey
+                              : null,
                           song: song,
                           index: index + 1,
                           player: widget.player,
                           canDelete: _canEdit,
+                          selectionMode: _selectionMode,
+                          selected: _selectedHashes.contains(song.hash),
+                          onToggleSelect: () => _toggleSongSelection(song),
                           onTap: () async {
                             final queue = await _ensureFullQueueForPlayback();
                             if (!mounted || queue.isEmpty) return;
@@ -935,7 +1208,16 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
             left: 0,
             right: 0,
             bottom: bottomInset + 10,
-            child: MiniPlayer(player: widget.player, auth: widget.auth),
+            child: _selectionMode
+                ? _SelectionBar(
+                    selectedCount: _selectedCount,
+                    allSelected: _isAllSelected,
+                    downloading: _batchDownloading,
+                    onToggleAll: _toggleSelectAll,
+                    onInvert: _toggleInvertSelection,
+                    onDownload: _selectedCount == 0 ? null : _downloadSelected,
+                  )
+                : MiniPlayer(player: widget.player, auth: widget.auth),
           ),
         ],
       ),
@@ -1247,6 +1529,9 @@ class _Actions extends StatelessWidget {
     required this.onSortTap,
     this.searchQuery,
     this.searchResultCount,
+    this.selectionMode = false,
+    this.selectedCount = 0,
+    this.onSelectTap,
   });
 
   final int count;
@@ -1256,6 +1541,9 @@ class _Actions extends StatelessWidget {
   final int? searchResultCount;
   final String sortLabel;
   final VoidCallback onSortTap;
+  final bool selectionMode;
+  final int selectedCount;
+  final VoidCallback? onSelectTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1263,71 +1551,110 @@ class _Actions extends StatelessWidget {
     final isSearching = searchQuery != null && searchQuery!.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
+      child: selectionMode
+          ? Row(
               children: [
-                Flexible(
-                  child: Text(
-                    isSearching
-                        ? '搜索结果：$searchResultCount 首'
-                        : loadedCount >= count
-                        ? '$count 首歌曲'
-                        : '已加载 $loadedCount / $count 首',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 18,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '已选择 $selectedCount 首',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          isSearching
+                              ? '搜索结果：$searchResultCount 首'
+                              : loadedCount >= count
+                              ? '$count 首歌曲'
+                              : '已加载 $loadedCount / $count 首',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!isSearching) ...[
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: onSortTap,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          icon: const Icon(Icons.sort_rounded, size: 16),
+                          label: Text(
+                            sortLabel,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 if (!isSearching) ...[
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: onSortTap,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: const Icon(Icons.sort_rounded, size: 16),
-                    label: Text(
-                      sortLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.primary,
+                  if (onSelectTap != null) ...[
+                    const SizedBox(width: 6),
+                    TextButton.icon(
+                      onPressed: onSelectTap,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      icon: const Icon(Icons.checklist_rounded, size: 16),
+                      label: Text(
+                        '选择',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.primary,
+                        ),
                       ),
                     ),
+                  ],
+                  const SizedBox(width: 6),
+                  FilledButton.icon(
+                    onPressed: onPlay,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('播放全部'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      shape: const StadiumBorder(),
+                    ),
                   ),
-                ],
+                ] else if (searchResultCount != null && searchResultCount! > 0)
+                  FilledButton.icon(
+                    onPressed: onPlay,
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('播放结果'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      shape: const StadiumBorder(),
+                    ),
+                  ),
               ],
             ),
-          ),
-          if (!isSearching)
-            FilledButton.icon(
-              onPressed: onPlay,
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('播放全部'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                shape: const StadiumBorder(),
-              ),
-            )
-          else if (searchResultCount != null && searchResultCount! > 0)
-            FilledButton.icon(
-              onPressed: onPlay,
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('播放结果'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                shape: const StadiumBorder(),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }
@@ -1422,6 +1749,7 @@ class _LoadMoreFooter extends StatelessWidget {
 
 class _SongRow extends StatelessWidget {
   const _SongRow({
+    super.key,
     required this.song,
     required this.index,
     required this.player,
@@ -1430,6 +1758,9 @@ class _SongRow extends StatelessWidget {
     required this.onAddToPlaylist,
     required this.onDelete,
     required this.onViewArtist,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onToggleSelect,
   });
 
   final Song song;
@@ -1440,6 +1771,9 @@ class _SongRow extends StatelessWidget {
   final VoidCallback onAddToPlaylist;
   final VoidCallback onDelete;
   final VoidCallback onViewArtist;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback? onToggleSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -1454,7 +1788,7 @@ class _SongRow extends StatelessWidget {
           final activeColor = colorScheme.primary;
           return InkWell(
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          onTap: onTap,
+          onTap: selectionMode ? onToggleSelect : onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
@@ -1466,6 +1800,14 @@ class _SongRow extends StatelessWidget {
             ),
             child: Row(
               children: [
+                if (selectionMode) ...[
+                  Checkbox(
+                    value: selected,
+                    onChanged: (_) => onToggleSelect?.call(),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 2),
+                ],
                 SizedBox.square(
                   dimension: 50,
                   child: Stack(
@@ -1557,62 +1899,148 @@ class _SongRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                IconButton(
-                  tooltip: '更多',
-                  onPressed: () {
-                    showSongActionSheet(
-                      context: context,
-                      song: song,
-                      actions: [
-                        SongSheetAction(
-                          icon: Icons.queue_music_rounded,
-                          title: '下一首播放',
-                          onTap: () => addSongToQueueWithFeedback(
-                            context: context,
-                            player: player,
-                            song: song,
-                          ),
-                        ),
-                        SongSheetAction(
-                          icon: Icons.playlist_add_rounded,
-                          title: '添加到歌单',
-                          onTap: onAddToPlaylist,
-                        ),
-                        SongSheetAction(
-                          icon: Icons.person_rounded,
-                          title: '查看歌手',
-                          onTap: onViewArtist,
-                        ),
-                        if (canDelete)
+                if (!selectionMode)
+                  IconButton(
+                    tooltip: '更多',
+                    onPressed: () {
+                      showSongActionSheet(
+                        context: context,
+                        song: song,
+                        actions: [
                           SongSheetAction(
-                            icon: Icons.delete_outline_rounded,
-                            title: '从歌单删除',
-                            danger: true,
-                            onTap: onDelete,
-                          ),
-                        if (player.downloadController != null)
-                          SongSheetAction(
-                            icon: player.downloadController!.isDownloaded(song)
-                                ? Icons.download_done_rounded
-                                : Icons.download_rounded,
-                            title: player.downloadController!.isDownloaded(song)
-                                ? '已下载'
-                                : '下载',
-                            onTap: () => player.downloadController!.download(
-                              song,
-                              player.audioQuality,
+                            icon: Icons.queue_music_rounded,
+                            title: '下一首播放',
+                            onTap: () => addSongToQueueWithFeedback(
+                              context: context,
+                              player: player,
+                              song: song,
                             ),
                           ),
-                      ],
-                    );
-                  },
-                  icon: const Icon(Icons.more_horiz_rounded),
-                ),
+                          SongSheetAction(
+                            icon: Icons.playlist_add_rounded,
+                            title: '添加到歌单',
+                            onTap: onAddToPlaylist,
+                          ),
+                          SongSheetAction(
+                            icon: Icons.person_rounded,
+                            title: '查看歌手',
+                            onTap: onViewArtist,
+                          ),
+                          if (canDelete)
+                            SongSheetAction(
+                              icon: Icons.delete_outline_rounded,
+                              title: '从歌单删除',
+                              danger: true,
+                              onTap: onDelete,
+                            ),
+                          if (player.downloadController != null)
+                            SongSheetAction(
+                              icon: player.downloadController!.isDownloaded(song)
+                                  ? Icons.download_done_rounded
+                                  : Icons.download_rounded,
+                              title: player.downloadController!.isDownloaded(song)
+                                  ? '已下载'
+                                  : '下载',
+                              onTap: () => player.downloadController!.download(
+                                song,
+                                player.audioQuality,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                    icon: const Icon(Icons.more_horiz_rounded),
+                  ),
               ],
             ),
           ),
         );
         },
+      ),
+    );
+  }
+}
+
+/// 多选模式底部操作栏：全选 / 反选 / 批量下载。
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({
+    required this.selectedCount,
+    required this.allSelected,
+    required this.downloading,
+    required this.onToggleAll,
+    required this.onInvert,
+    required this.onDownload,
+  });
+
+  final int selectedCount;
+  final bool allSelected;
+  final bool downloading;
+  final VoidCallback onToggleAll;
+  final VoidCallback onInvert;
+  final VoidCallback? onDownload;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Material(
+        elevation: 6,
+        shadowColor: Colors.black.withValues(alpha: .3),
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 12, 4),
+          child: Row(
+            children: [
+              TextButton(
+                onPressed: onToggleAll,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(allSelected ? '取消全选' : '全选'),
+              ),
+              TextButton(
+                onPressed: onInvert,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('反选'),
+              ),
+              Expanded(
+                child: Text(
+                  '已选择 $selectedCount 首',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: downloading ? null : onDownload,
+                icon: downloading
+                    ? const SizedBox.square(
+                        dimension: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded, size: 18),
+                label: Text(
+                  downloading ? '加入中…' : '下载($selectedCount)',
+                ),
+                style: FilledButton.styleFrom(
+                  shape: const StadiumBorder(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

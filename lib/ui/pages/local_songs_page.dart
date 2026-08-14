@@ -54,6 +54,153 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
     }
   }
 
+  /// 打开「扫描目录设置」：勾选/取消勾选文件夹以排除录音等目录。
+  void _showFolderFilterSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+        return AnimatedBuilder(
+          animation: widget.localMusic,
+          builder: (context, _) {
+            final folders = widget.localMusic.availableFolders;
+            final excludedCount = widget.localMusic.excludedFolders.length;
+            return SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.72,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '扫描目录设置',
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          if (excludedCount > 0)
+                            TextButton(
+                              onPressed: () => widget.localMusic
+                                  .clearExcludedFolders(),
+                              child: const Text('恢复全部'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                      child: Text(
+                        '取消勾选的文件夹将从本地音乐中排除（例如录音文件夹），'
+                        '其子目录中的音频也不会显示。',
+                        style: Theme.of(sheetContext).textTheme.bodySmall
+                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                    ),
+                    Flexible(
+                      child: folders.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Center(
+                                child: Text(
+                                  '未扫描到任何音频文件夹',
+                                  style: Theme.of(sheetContext)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: folders.length,
+                              separatorBuilder: (_, _) => Divider(
+                                height: 1,
+                                indent: 56,
+                                color: colorScheme.outlineVariant
+                                    .withValues(alpha: .3),
+                              ),
+                              itemBuilder: (context, index) {
+                                final entry = folders[index];
+                                final folder = entry.folder;
+                                final excluded =
+                                    widget.localMusic.isFolderExcluded(folder);
+                                return CheckboxListTile(
+                                  value: !excluded,
+                                  onChanged: (checked) =>
+                                      widget.localMusic.setFolderExcluded(
+                                    folder,
+                                    checked != true,
+                                  ),
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                  secondary: Icon(
+                                    excluded
+                                        ? Icons.folder_off_rounded
+                                        : Icons.folder_rounded,
+                                    color: excluded
+                                        ? colorScheme.outline
+                                        : colorScheme.primary
+                                            .withValues(alpha: .8),
+                                  ),
+                                  title: Text(
+                                    _folderDisplayName(folder),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: excluded
+                                          ? colorScheme.onSurfaceVariant
+                                          : colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '$folder · ${entry.count} 首',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(sheetContext)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    if (excludedCount > 0)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
+                        child: Text(
+                          '已排除 $excludedCount 个文件夹',
+                          style: Theme.of(sheetContext).textTheme.bodySmall
+                              ?.copyWith(color: colorScheme.primary),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -78,13 +225,22 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
               if (!Platform.isAndroid || !widget.localMusic.hasPermission) {
                 return const SizedBox.shrink();
               }
-              return IconButton(
-                tooltip: '重新扫描',
-                onPressed: () async {
-                  await widget.localMusic.scanLocalMusic();
-                  Toast.success('扫描完成');
-                },
-                icon: const Icon(Icons.refresh_rounded),
+              return Row(
+                children: [
+                  IconButton(
+                    tooltip: '扫描目录设置',
+                    onPressed: _showFolderFilterSheet,
+                    icon: const Icon(Icons.rule_folder_rounded),
+                  ),
+                  IconButton(
+                    tooltip: '重新扫描',
+                    onPressed: () async {
+                      await widget.localMusic.scanLocalMusic();
+                      Toast.success('扫描完成');
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
               );
             },
           ),
@@ -311,4 +467,15 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
       ),
     );
   }
+}
+
+/// 取文件夹显示名：优先末级目录名，顶层存储目录（末级为 `0`）显示完整路径。
+String _folderDisplayName(String folder) {
+  final separator = folder.contains('\\') ? '\\' : '/';
+  final segments =
+      folder.split(separator).where((s) => s.isNotEmpty).toList();
+  if (segments.isEmpty) return folder;
+  final last = segments.last;
+  if (last == '0' || last == 'storage') return folder;
+  return last;
 }
