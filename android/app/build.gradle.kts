@@ -24,7 +24,7 @@ fun hasReleaseSigning(): Boolean = keystorePropertiesFile.exists() &&
 
 android {
     namespace = "com.hoilai.mm.music"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

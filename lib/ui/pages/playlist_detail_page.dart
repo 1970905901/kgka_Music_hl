@@ -1574,23 +1574,7 @@ class _Actions extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          isSearching
-                              ? '搜索结果：$searchResultCount 首'
-                              : loadedCount >= count
-                              ? '$count 首歌曲'
-                              : '已加载 $loadedCount / $count 首',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
                       if (!isSearching) ...[
-                        const SizedBox(width: 8),
                         TextButton.icon(
                           onPressed: onSortTap,
                           style: TextButton.styleFrom(
@@ -1608,7 +1592,23 @@ class _Actions extends StatelessWidget {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                       ],
+                      Flexible(
+                        child: Text(
+                          isSearching
+                              ? '搜索结果：$searchResultCount 首'
+                              : loadedCount >= count
+                              ? '$count 首歌曲'
+                              : '已加载 $loadedCount / $count 首',
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                 ),

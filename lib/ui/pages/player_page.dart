@@ -16,6 +16,7 @@ import '../../models/music_models.dart';
 import '../../services/lyric_converter.dart';
 import '../widgets/audio_effects_sheet.dart';
 import '../widgets/audio_quality_sheet.dart';
+import '../widgets/blurred_lyric_view.dart';
 import '../widgets/artwork.dart';
 import '../widgets/playback_speed_sheet.dart';
 import '../widgets/sleep_timer_sheet.dart';
@@ -1838,6 +1839,10 @@ class _LyricViewport extends StatefulWidget {
 }
 
 class _LyricViewportState extends State<_LyricViewport> {
+  static const double _lyricAnchorFraction = 0.43;
+  static const double _lyricBlurSigma = 3.0;
+  static const double _lyricBlurStep = 0.7;
+
   late final LyricController _lyricController;
   late final Ticker _ticker;
   bool _isUserSelecting = false;
@@ -1935,46 +1940,51 @@ class _LyricViewportState extends State<_LyricViewport> {
     final inactiveFontSize = 30.0 * scale;
     final subtitleFontSize = 20.0 * scale;
 
+    final lyricStyle = LyricStyles.default1.copyWith(
+      textStyle: Theme.of(context).textTheme.headlineSmall!.copyWith(
+        color: Colors.white.withValues(alpha: .30),
+        fontSize: inactiveFontSize,
+        height: 1.24,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.5,
+      ),
+      activeStyle: Theme.of(context).textTheme.headlineMedium!.copyWith(
+        color: Colors.white.withValues(alpha: .34),
+        fontSize: mainFontSize,
+        height: 1.24,
+        fontWeight: FontWeight.w900,
+        letterSpacing: -0.5,
+      ),
+      translationStyle: Theme.of(context).textTheme.titleLarge!.copyWith(
+        color: Colors.white.withValues(alpha: .25),
+        fontSize: subtitleFontSize,
+        height: 1.3,
+        fontWeight: FontWeight.w500,
+      ),
+      translationActiveColor: Colors.white.withValues(alpha: .95),
+      lineGap: 16 * scale,
+      translationLineGap: 6 * scale,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 40 * scale,
+      ),
+      anchorPosition: _lyricAnchorFraction,
+      activeAnchorPosition: _lyricAnchorFraction,
+      fadeRange: FadeRange(top: 40, bottom: 40),
+      textAlign: TextAlign.left,
+      contentAlignment: CrossAxisAlignment.start,
+      activeHighlightColor: Colors.white,
+      scrollDuration: const Duration(milliseconds: 480),
+      scrollCurve: const Cubic(0.16, 1.0, 0.3, 1.0),
+    );
+
     return ExcludeSemantics(
       // 歌词视图高频更新会触发 Windows AXTree 竞态崩溃，排除语义树
-      child: LyricView(
+      child: BlurredLyricView(
         controller: _lyricController,
-        style: LyricStyles.default1.copyWith(
-          textStyle: Theme.of(context).textTheme.headlineSmall!.copyWith(
-            color: Colors.white.withValues(alpha: .30),
-            fontSize: inactiveFontSize,
-            height: 1.24,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.5,
-          ),
-          activeStyle: Theme.of(context).textTheme.headlineMedium!.copyWith(
-            color: Colors.white.withValues(alpha: .34),
-            fontSize: mainFontSize,
-            height: 1.24,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-          ),
-          translationStyle: Theme.of(context).textTheme.titleLarge!.copyWith(
-            color: Colors.white.withValues(alpha: .25),
-            fontSize: subtitleFontSize,
-            height: 1.3,
-            fontWeight: FontWeight.w500,
-          ),
-          translationActiveColor: Colors.white.withValues(alpha: .95),
-          lineGap: 16 * scale,
-          translationLineGap: 6 * scale,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 40 * scale,
-          ),
-          anchorPosition: 0.43,
-          fadeRange: FadeRange(top: 40, bottom: 40),
-          textAlign: TextAlign.left,
-          contentAlignment: CrossAxisAlignment.start,
-          activeHighlightColor: Colors.white,
-          scrollDuration: const Duration(milliseconds: 480),
-          scrollCurve: const Cubic(0.16, 1.0, 0.3, 1.0),
-        ),
+        style: lyricStyle,
+        maxBlurSigma: _lyricBlurSigma,
+        blurStep: _lyricBlurStep,
       ),
     );
   }
