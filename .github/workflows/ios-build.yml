@@ -46,9 +46,9 @@ jobs:
           flutter create --platforms=ios .
           /usr/libexec/PlistBuddy -c "Add UIBackgroundModes array" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add UIBackgroundModes:0 string audio" ios/Runner/Info.plist
-          # 应用显示名称改为「KA music」（iOS 工程每次都会重建，故在此设置）
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName KA music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string KA music" ios/Runner/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleName KA music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleName string KA music" ios/Runner/Info.plist
+          # 应用显示名称改为「KA Music」（iOS 工程每次都会重建，故在此设置）
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName KA Music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string KA Music" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName KA Music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleName string KA Music" ios/Runner/Info.plist
 
       # 未签名打包：--no-codesign 跳过所有签名步骤，无需证书/描述文件
       - name: Build iOS app (unsigned)
@@ -76,7 +76,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: KA music ${{ github.ref_name }}
+          name: KA Music ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           files: kgka_music.ipa
           generate_release_notes: true
