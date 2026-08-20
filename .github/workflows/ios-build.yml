@@ -51,8 +51,15 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :CFBundleName KA Music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleName string KA Music" ios/Runner/Info.plist
 
       # 未签名打包：--no-codesign 跳过所有签名步骤，无需证书/描述文件
+      # 显式关闭所有签名步骤，避免 Flutter 3.47.x 在缓存命中（复用已构建 Runner.app）时
+      # 仍触发 "DEVELOPMENT_TEAM required" 的 post-build 检查而失败
       - name: Build iOS app (unsigned)
-        run: flutter build ios --release --no-codesign
+        run: |
+          export CODE_SIGNING_ALLOWED=NO
+          export CODE_SIGNING_REQUIRED=NO
+          export CODE_SIGN_IDENTITY=""
+          export DEVELOPMENT_TEAM=""
+          flutter build ios --release --no-codesign
 
       # 将生成的 Runner.app 打包成未签名 .ipa（Payload 目录 + zip）
       - name: Package unsigned IPA
