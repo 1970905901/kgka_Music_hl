@@ -44,6 +44,13 @@ jobs:
         run: |
           rm -rf ios/
           flutter create --platforms=ios .
+          # Flutter 3.47.x 的 _missingDevelopmentTeam() 通过
+          # buildSettings.containsKey('DEVELOPMENT_TEAM') 判断是否有 Team，
+          # 而 flutter create 未指定 team 时该键根本不存在，会偶发误报
+          # "requires a selected Development Team"。这里注入占位值让键存在
+          # （值无所谓，--no-codesign 仍会跳过实际签名）。
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 0000000000;/' ios/Runner.xcodeproj/project.pbxproj || \
+            sed -i 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 0000000000;/' ios/Runner.xcodeproj/project.pbxproj
           /usr/libexec/PlistBuddy -c "Add UIBackgroundModes array" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add UIBackgroundModes:0 string audio" ios/Runner/Info.plist
           # 应用显示名称改为「KA Music」（iOS 工程每次都会重建，故在此设置）
