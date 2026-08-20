@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../design_tokens.dart';
-import 'package:flutter/services.dart';
+import '../widgets/status_bar_overlay.dart';
 
 import '../../config/app_config.dart';
 import '../../controllers/auth_controller.dart';
@@ -115,16 +115,8 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: colorScheme.brightness == Brightness.dark
-            ? Brightness.light
-            : Brightness.dark,
-        statusBarBrightness: colorScheme.brightness == Brightness.dark
-            ? Brightness.dark
-            : Brightness.light,
-      ),
+    return StatusBarOverlay(
+      brightness: colorScheme.brightness,
       child: Scaffold(
         appBar: AppBar(title: const Text('设置')),
         body: AnimatedBuilder(

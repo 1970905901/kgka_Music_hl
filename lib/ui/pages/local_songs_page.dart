@@ -7,6 +7,7 @@ import '../../controllers/local_music_controller.dart';
 import '../widgets/toast.dart';
 import '../widgets/artwork.dart';
 import '../widgets/now_playing_badge.dart';
+import '../widgets/status_bar_overlay.dart';
 
 class LocalSongsPage extends StatefulWidget {
   const LocalSongsPage({
@@ -205,9 +206,11 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('本地音乐'),
+    return StatusBarOverlay(
+      brightness: Brightness.light,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('本地音乐'),
         actions: [
           AnimatedBuilder(
             animation: widget.localMusic,
@@ -420,6 +423,7 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
             );
           },
         ),
+      ),
       ),
     );
   }

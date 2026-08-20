@@ -11,6 +11,7 @@ import '../../models/music_models.dart';
 import '../../services/music_api.dart';
 import '../widgets/artwork.dart';
 import '../adaptive_layout.dart';
+import '../widgets/status_bar_overlay.dart';
 
 /// 已下载歌曲与播放缓存管理页。
 class DownloadedSongsPage extends StatefulWidget {
@@ -49,9 +50,11 @@ class _DownloadedSongsPageState extends State<DownloadedSongsPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('已下载'),
+    return StatusBarOverlay(
+      brightness: Brightness.light,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('已下载'),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -73,6 +76,7 @@ class _DownloadedSongsPageState extends State<DownloadedSongsPage>
             _PlayCacheList(downloads: widget.downloads),
           ],
         ),
+      ),
       ),
     );
   }

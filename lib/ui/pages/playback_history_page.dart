@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../design_tokens.dart';
+import '../widgets/status_bar_overlay.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
@@ -99,8 +100,10 @@ class _PlaybackHistoryPageState extends State<PlaybackHistoryPage> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: AdaptiveContentPadding(
+    return StatusBarOverlay(
+      brightness: Brightness.light,
+      child: Scaffold(
+        body: AdaptiveContentPadding(
         child: Stack(
           children: [
             FutureBuilder<List<Song>>(
@@ -169,6 +172,7 @@ class _PlaybackHistoryPageState extends State<PlaybackHistoryPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

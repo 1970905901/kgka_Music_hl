@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import '../design_tokens.dart';
+import '../widgets/status_bar_overlay.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_lyric/flutter_lyric.dart';
@@ -56,7 +58,6 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void dispose() {
     unawaited(_setKeepScreenOn(false));
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -179,7 +180,6 @@ class _PlayerBodyState extends State<_PlayerBody> {
 
   @override
   void dispose() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _pageController.dispose();
     super.dispose();
   }
@@ -198,11 +198,8 @@ class _PlayerBodyState extends State<_PlayerBody> {
     // 横屏分栏布局是车机专属，普通横屏仍用竖屏的翻页布局。
     final isCarLayout = landscape && ThemeController.instance.carModeEnabled;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.light,
-      ),
+    return StatusBarOverlay(
+      brightness: Brightness.dark,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
@@ -276,12 +273,16 @@ class _PlayerBodyState extends State<_PlayerBody> {
       return;
     }
     _lastSystemUiLandscape = landscape;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    });
+    // 仅在 Android 上保持沉浸式全屏；iOS 上重置 SystemUiMode 会污染状态栏前景色，
+    // 由本页的 StatusBarOverlay（及全局 _SystemUiOverlay）负责状态栏样式。
+    if (Platform.isAndroid) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      });
+    }
   }
 
   bool _handlePageScrollNotification(ScrollNotification notification) {
