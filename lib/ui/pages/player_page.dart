@@ -2566,7 +2566,8 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
           reverseTransitionDuration: const Duration(milliseconds: 300),
           pageBuilder: (context, animation, secondaryAnimation) =>
               builder(context),
-          transitionsBuilder: _buildTransitions,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+              _buildTransitions(context, animation, child),
         );
 
   /// 屏幕宽度，用于归一化拖动进度。
@@ -2575,7 +2576,6 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
   Widget _buildTransitions(
     BuildContext context,
     Animation<double> animation,
-    Animation<double> secondaryAnimation,
     Widget child,
   ) {
     // 唯一位置驱动：监听路由动画值，value=1 时页面在屏幕正中(Offset.zero)，
@@ -2626,9 +2626,7 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
                   (velocity > 200 && animation.value < 1.0);
               if (shouldClose) {
                 controller.animateTo(0.0).then((_) {
-                  if (mounted) {
-                    navigator?.pop();
-                  }
+                  navigator?.pop();
                 });
               } else {
                 controller.animateBack(1.0);
