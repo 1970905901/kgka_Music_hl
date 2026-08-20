@@ -200,16 +200,7 @@ class _PlayerBodyState extends State<_PlayerBody> {
 
     return StatusBarOverlay(
       brightness: Brightness.dark,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0.0;
-          // 从右向左快速滑动（primaryVelocity > 0 表示手指向右/页面向右退出）→ 关闭播放页
-          if (velocity > 250) {
-            widget.onClose();
-          }
-        },
-        child: Scaffold(
+      child: Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
             children: [
@@ -272,7 +263,6 @@ class _PlayerBodyState extends State<_PlayerBody> {
               ),
             ),
           ],
-        ),
         ),
       ),
     );
@@ -2566,7 +2556,9 @@ class _PageDots extends StatelessWidget {
 /// 播放页专用路由：无 iOS 系统退场模糊。
 ///
 /// 用自定义 [PageRouteBuilder] 实现右滑入/右滑出，避免 iOS 系统级页面
-/// 过渡在退场时给底层页面添加模糊遮罩。手势关闭走页面内的 onHorizontalDragEnd。
+/// 过渡在退场时给底层页面添加模糊遮罩。路由内容之上叠加左缘 32px 边缘条，
+/// 实现跟随手指的右滑关闭：手指向右拖 → 页面跟随右移，松手超过阈值则
+/// 关闭，否则回弹（参考 CupertinoPageRoute 的 _CupertinoBackGestureDetector）。
 class PlayerPageRoute<T> extends PageRouteBuilder<T> {
   PlayerPageRoute({required WidgetBuilder builder})
       : super(
@@ -2574,15 +2566,94 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
           reverseTransitionDuration: const Duration(milliseconds: 300),
           pageBuilder: (context, animation, secondaryAnimation) =>
               builder(context),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            // 从右往左滑入；退场反向滑出。纯平移，无模糊。
-            final begin = const Offset(1.0, 0.0);
-            final tween = Tween<Offset>(begin: begin, end: Offset.zero)
-                .chain(CurveTween(curve: Curves.easeOutCubic));
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
+          transitionsBuilder: _buildTransitions,
         );
+
+  /// 跟随手指的横向拖动距离（逻辑像素，向右为正）。
+  double _dragDistance = 0;
+
+  /// 拖动开始时路由动画的值（0..1，1=完全进场）。
+  double _dragStartValue = 1.0;
+
+  /// 屏幕宽度，用于归一化拖动进度。
+  double _screenWidth = 1;
+
+  Widget _buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    // 退场/入场的基础位移动画（保持无模糊、右滑入右滑出）。
+    final tween = Tween<Offset>(
+      begin: const Offset(1.0, 0.0),
+      end: Offset.zero,
+    ).chain(CurveTween(curve: Curves.easeOutCubic));
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: SlideTransition(
+            position: animation.drive(tween),
+            child: AnimatedBuilder(
+              animation: animation,
+              builder: (context, _) {
+                // 手指拖动时的额外平移：跟随手指向右移动。
+                return Transform.translate(
+                  offset: Offset(_dragDistance, 0),
+                  child: child,
+                );
+              },
+            ),
+          ),
+        ),
+        // 左侧边缘手势条（约 32 逻辑像素宽），实现跟随手指的右滑关闭。
+        // 只占左缘窄条，不遮挡页面中央控件，也不与 PageView/唱片刻盘冲突。
+        Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 32,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: (details) {
+              _dragStartValue = animation.value;
+              _screenWidth = MediaQuery.sizeOf(context).width;
+              _dragDistance = 0;
+            },
+            onHorizontalDragUpdate: (details) {
+              // 手指向右拖动为正（从左往右滑）。
+              final delta = details.primaryDelta ?? 0;
+              _dragDistance += delta;
+              // 路由动画反向：拖动越多，animation 值越小（页面向右移动）。
+              final maxDrag = _screenWidth;
+              final progress = (_dragStartValue - (_dragDistance / maxDrag))
+                  .clamp(0.0, 1.0);
+              // 直接回写动画值。PageRouteBuilder 的 animation 实际是
+              // AnimationController（CupertinoPageRoute 官方同款做法）。
+              final controller = animation as AnimationController;
+              controller.value = progress;
+            },
+            onHorizontalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              final controller = animation as AnimationController;
+              final shouldClose = _dragDistance > _screenWidth * 0.25 ||
+                  (velocity > 200 && _dragDistance > 0);
+              if (shouldClose) {
+                _dragDistance = 0;
+                controller.animateTo(0.0).then((_) {
+                  if (mounted && navigator != null) {
+                    navigator?.pop();
+                  }
+                });
+              } else {
+                _dragDistance = 0;
+                controller.animateBack(1.0);
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
 }
