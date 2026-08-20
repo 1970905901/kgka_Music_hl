@@ -101,7 +101,7 @@ class _PlaybackHistoryPageState extends State<PlaybackHistoryPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return StatusBarOverlay(
-      brightness: Brightness.light,
+      brightness: Theme.of(context).brightness,
       child: Scaffold(
         body: AdaptiveContentPadding(
         child: Stack(

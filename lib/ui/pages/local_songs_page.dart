@@ -207,7 +207,7 @@ class _LocalSongsPageState extends State<LocalSongsPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return StatusBarOverlay(
-      brightness: Brightness.light,
+      brightness: Theme.of(context).brightness,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('本地音乐'),

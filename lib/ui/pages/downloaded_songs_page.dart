@@ -51,7 +51,7 @@ class _DownloadedSongsPageState extends State<DownloadedSongsPage>
   @override
   Widget build(BuildContext context) {
     return StatusBarOverlay(
-      brightness: Brightness.light,
+      brightness: Theme.of(context).brightness,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('已下载'),
