@@ -2569,12 +2569,6 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
           transitionsBuilder: _buildTransitions,
         );
 
-  /// 跟随手指的横向拖动距离（逻辑像素，向右为正）。
-  double _dragDistance = 0;
-
-  /// 拖动开始时路由动画的值（0..1，1=完全进场）。
-  double _dragStartValue = 1.0;
-
   /// 屏幕宽度，用于归一化拖动进度。
   double _screenWidth = 1;
 
@@ -2584,27 +2578,23 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    // 退场/入场的基础位移动画（保持无模糊、右滑入右滑出）。
-    final tween = Tween<Offset>(
-      begin: const Offset(1.0, 0.0),
-      end: Offset.zero,
-    ).chain(CurveTween(curve: Curves.easeOutCubic));
-
+    // 唯一位置驱动：监听路由动画值，value=1 时页面在屏幕正中(Offset.zero)，
+    // value=0 时页面完全移出右边缘(Offset(screenWidth,0))。
+    // 手指拖动通过回写 controller.value 实现跟随（参考 CupertinoPageRoute
+    // 的 _CupertinoBackGestureController），因此这里不用 SlideTransition，
+    // 避免双驱动导致页面位移等于两倍手指距离。
     return Stack(
       children: [
         Positioned.fill(
-          child: SlideTransition(
-            position: animation.drive(tween),
-            child: AnimatedBuilder(
-              animation: animation,
-              builder: (context, _) {
-                // 手指拖动时的额外平移：跟随手指向右移动。
-                return Transform.translate(
-                  offset: Offset(_dragDistance, 0),
-                  child: child,
-                );
-              },
-            ),
+          child: AnimatedBuilder(
+            animation: animation,
+            builder: (context, _) {
+              final offsetX = (1.0 - animation.value) * _screenWidth;
+              return Transform.translate(
+                offset: Offset(offsetX, 0),
+                child: child,
+              );
+            },
           ),
         ),
         // 左侧边缘手势条（约 32 逻辑像素宽），实现跟随手指的右滑关闭。
@@ -2617,37 +2607,30 @@ class PlayerPageRoute<T> extends PageRouteBuilder<T> {
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onHorizontalDragStart: (details) {
-              _dragStartValue = animation.value;
               _screenWidth = MediaQuery.sizeOf(context).width;
-              _dragDistance = 0;
             },
             onHorizontalDragUpdate: (details) {
-              // 手指向右拖动为正（从左往右滑）。
+              // 手指向右拖动为正（从左往右滑）：动画值减小 → 页面右移跟随。
               final delta = details.primaryDelta ?? 0;
-              _dragDistance += delta;
-              // 路由动画反向：拖动越多，animation 值越小（页面向右移动）。
               final maxDrag = _screenWidth;
-              final progress = (_dragStartValue - (_dragDistance / maxDrag))
-                  .clamp(0.0, 1.0);
-              // 直接回写动画值。PageRouteBuilder 的 animation 实际是
-              // AnimationController（CupertinoPageRoute 官方同款做法）。
+              final progress =
+                  (animation.value - (delta / maxDrag)).clamp(0.0, 1.0);
               final controller = animation as AnimationController;
               controller.value = progress;
             },
             onHorizontalDragEnd: (details) {
               final velocity = details.primaryVelocity ?? 0;
               final controller = animation as AnimationController;
-              final shouldClose = _dragDistance > _screenWidth * 0.25 ||
-                  (velocity > 200 && _dragDistance > 0);
+              // 已拖出超过 1/4 屏，或快速向右甩动 → 关闭；否则回弹。
+              final shouldClose = animation.value < 0.75 ||
+                  (velocity > 200 && animation.value < 1.0);
               if (shouldClose) {
-                _dragDistance = 0;
                 controller.animateTo(0.0).then((_) {
-                  if (mounted && navigator != null) {
+                  if (mounted) {
                     navigator?.pop();
                   }
                 });
               } else {
-                _dragDistance = 0;
                 controller.animateBack(1.0);
               }
             },
