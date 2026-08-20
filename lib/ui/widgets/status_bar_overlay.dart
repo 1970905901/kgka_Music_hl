@@ -8,9 +8,12 @@ import 'package:flutter/services.dart';
 ///   - [Brightness.light]：浅色背景 → 状态栏使用黑色文字/图标。
 ///   - [Brightness.dark]：深色背景 → 状态栏使用白色文字/图标。
 ///
-/// 同时兼容 iOS（[SystemUiOverlayStyle.statusBarBrightness]）与
-/// Android（[SystemUiOverlayStyle.statusBarIconBrightness]），避免在各页面
-/// 重复编写两份几乎一致的 [SystemUiOverlayStyle]。
+/// iOS（[SystemUiOverlayStyle.statusBarBrightness]）描述的是状态栏【背景】的明暗，
+/// 系统据此自动选取对比前景色；Android（[SystemUiOverlayStyle.statusBarIconBrightness]）
+/// 描述的是【前景】（图标/文字）的明暗。两者语义相反，因此取值必须相反：
+/// 浅色背景 → statusBarBrightness: [Brightness.light]（iOS 黑字）/
+/// statusBarIconBrightness: [Brightness.dark]（Android 黑图标）；
+/// 深色背景 → 两者取镜像值。
 class StatusBarOverlay extends StatelessWidget {
   const StatusBarOverlay({
     super.key,
@@ -26,17 +29,23 @@ class StatusBarOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 浅色背景 → 黑色前景（Brightness.dark）；深色背景 → 白色前景（Brightness.light）。
-    // 该 foreground 同时用于 iOS（statusBarBrightness）与 Android（statusBarIconBrightness）。
-    final foreground = brightness == Brightness.dark
-        ? Brightness.light
-        : Brightness.dark;
+    final isDarkBackground = brightness == Brightness.dark;
+
+    // Android：该属性描述的是前景（图标/文字）的明暗。
+    // 深色背景 → 白色前景；浅色背景 → 黑色前景。
+    final iconBrightness =
+        isDarkBackground ? Brightness.light : Brightness.dark;
+
+    // iOS：该属性描述的是状态栏背后【背景】的明暗，系统据此自动选取对比前景色。
+    // 因此它必须与 iconBrightness 相反，否则 iOS 会画出与背景同色、完全看不见的文字。
+    final iosBarBrightness =
+        isDarkBackground ? Brightness.dark : Brightness.light;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: foreground,
-        statusBarBrightness: foreground,
+        statusBarIconBrightness: iconBrightness,
+        statusBarBrightness: iosBarBrightness,
       ),
       child: child,
     );
