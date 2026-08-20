@@ -13,9 +13,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
-# 创建 Release 需要写权限
+# 创建 Release 需要写权限；删除旧的 workflow run 需要 actions 写权限
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-ipa:
@@ -99,3 +100,25 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 自动清理：只保留最近 10 个 workflow run（含本次），删除更早的历史构建。
+      # 每次构建完成后运行，避免手动清理。Release 附带的 IPA 不受影响。
+      - name: Cleanup old workflow runs (keep latest 10)
+        shell: bash
+        run: |
+          # 按时间倒序列出所有 run id（最新在前）
+          RUN_IDS=$(gh api \
+            "repos/${{ github.repository }}/actions/runs?per_page=100&page=1" \
+            --jq '.workflow_runs[].id' | sort -rn | head -100)
+          COUNT=0
+          for ID in $RUN_IDS; do
+            COUNT=$((COUNT + 1))
+            if [ $COUNT -gt 10 ]; then
+              echo "Deleting run $ID (position $COUNT)"
+              gh api -X DELETE "repos/${{ github.repository }}/actions/runs/$ID" \
+                --silent || echo "  (skip: $ID 删除失败或已删除)"
+            fi
+          done
+          echo "保留最近 10 个 run，共检查 $COUNT 个"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
