@@ -12,10 +12,16 @@ import 'artwork.dart';
 import 'toast.dart';
 
 class MiniPlayer extends StatelessWidget {
-  const MiniPlayer({super.key, required this.player, required this.auth});
+  const MiniPlayer({
+    super.key,
+    required this.player,
+    required this.auth,
+    this.onOpenPlayer, // 可选：AppShell 宿主提供则走 Stack 覆盖层；否则路由兜底
+  });
 
   final PlayerController player;
   final AuthController auth;
+  final VoidCallback? onOpenPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -68,11 +74,7 @@ class MiniPlayer extends StatelessWidget {
                   ],
                 ),
                 child: InkWell(
-                  onTap: () => Navigator.of(context).push(
-                    PlayerPageRoute(
-                      builder: (_) => PlayerPage(player: player, auth: auth),
-                    ),
-                  ),
+                  onTap: onOpenPlayer ?? () => _openPlayerByRoute(context),
                   child: SizedBox(
                     height: 64,
                     child: Stack(
@@ -195,6 +197,29 @@ class MiniPlayer extends StatelessWidget {
             ),
           ),
         );
+        },
+      ),
+    );
+  }
+
+  /// 路由兜底：非 AppShell 宿主（搜索/歌单详情/云盘等页面）仍以路由方式打开
+  /// 播放页。使用自定义 PageRouteBuilder（非 iOS 系统 Modal 转场），
+  /// 避免系统级退场模糊。
+  void _openPlayerByRoute(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PlayerPage(player: player, auth: auth),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).chain(CurveTween(curve: Curves.easeOutCubic)).animate(animation),
+            child: child,
+          );
         },
       ),
     );

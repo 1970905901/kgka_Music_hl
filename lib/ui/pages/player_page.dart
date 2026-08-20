@@ -34,10 +34,12 @@ class PlayerPage extends StatefulWidget {
     super.key,
     required this.player,
     required this.auth,
+    this.onClose, // 新增：由宿主（AppShell）提供关闭回调
   });
 
   final PlayerController player;
   final AuthController auth;
+  final VoidCallback? onClose; // 新增
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -85,7 +87,7 @@ class _PlayerPageState extends State<PlayerPage> {
           player: widget.player,
           auth: widget.auth,
           song: song,
-          onClose: () => Navigator.of(context).pop(),
+          onClose: widget.onClose ?? () => Navigator.of(context).pop(),
           onQueue: () => _showQueue(context),
         );
       },
@@ -2553,92 +2555,3 @@ class _PageDots extends StatelessWidget {
   }
 }
 
-/// 播放页专用路由：无 iOS 系统退场模糊。
-///
-/// 用自定义 [PageRouteBuilder] 实现右滑入/右滑出，避免 iOS 系统级页面
-/// 过渡在退场时给底层页面添加模糊遮罩。路由内容之上叠加左缘 32px 边缘条，
-/// 实现跟随手指的右滑关闭：手指向右拖 → 页面跟随右移，松手超过阈值则
-/// 关闭，否则回弹（参考 CupertinoPageRoute 的 _CupertinoBackGestureDetector）。
-class PlayerPageRoute<T> extends PageRouteBuilder<T> {
-  PlayerPageRoute({required WidgetBuilder builder})
-      : super(
-          transitionDuration: const Duration(milliseconds: 300),
-          reverseTransitionDuration: const Duration(milliseconds: 300),
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              builder(context),
-          transitionsBuilder: _buildTransitions,
-        );
-
-  /// 屏幕宽度，用于归一化拖动进度。
-  static double _screenWidth = 1;
-
-  static Widget _buildTransitions(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    // 唯一位置驱动：监听路由动画值，value=1 时页面在屏幕正中(Offset.zero)，
-    // value=0 时页面完全移出右边缘(Offset(screenWidth,0))。
-    // 手指拖动通过回写 controller.value 实现跟随（参考 CupertinoPageRoute
-    // 的 _CupertinoBackGestureController），因此这里不用 SlideTransition，
-    // 避免双驱动导致页面位移等于两倍手指距离。
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: AnimatedBuilder(
-            animation: animation,
-            builder: (context, _) {
-              final offsetX = (1.0 - animation.value) * _screenWidth;
-              return Transform.translate(
-                offset: Offset(offsetX, 0),
-                child: child,
-              );
-            },
-          ),
-        ),
-        // 左侧边缘手势条（约 32 逻辑像素宽），实现跟随手指的右滑关闭。
-        // 只占左缘窄条，不遮挡页面中央控件，也不与 PageView/唱片刻盘冲突。
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 32,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: (details) {
-              _screenWidth = MediaQuery.sizeOf(context).width;
-            },
-            onHorizontalDragUpdate: (details) {
-              // 手指向右拖动为正（从左往右滑）：动画值减小 → 页面右移跟随。
-              final delta = details.primaryDelta ?? 0;
-              final maxDrag = _screenWidth;
-              final progress =
-                  (animation.value - (delta / maxDrag)).clamp(0.0, 1.0);
-              final controller = animation as AnimationController;
-              controller.value = progress;
-            },
-            onHorizontalDragEnd: (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              final controller = animation as AnimationController;
-              // 已拖出超过 1/4 屏，或快速向右甩动 → 关闭；否则回弹。
-              final shouldClose = animation.value < 0.75 ||
-                  (velocity > 200 && animation.value < 1.0);
-              if (shouldClose) {
-                controller.animateTo(0.0).then((_) {
-                  // 静态方法内无法直接访问 this.navigator，通过 context 取路由
-                  final route = ModalRoute.of(context);
-                  if (route?.isCurrent ?? false) {
-                    Navigator.of(context).maybePop();
-                  }
-                });
-              } else {
-                controller.animateBack(1.0);
-              }
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}

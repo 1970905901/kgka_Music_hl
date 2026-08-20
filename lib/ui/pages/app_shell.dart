@@ -16,6 +16,7 @@ import '../widgets/car_left_player_panel.dart';
 import '../adaptive_layout.dart';
 import 'home_page.dart';
 import 'library_page.dart';
+import 'player_page.dart';
 import 'search_page.dart';
 import 'settings_page.dart';
 
@@ -43,10 +44,118 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell>
+    with SingleTickerProviderStateMixin {
   var _index = 1; // Default to '推荐' tab (index 1) in landscape
   var _lastHomeTab = 1; // Tracks the last active Home sub-tab (1 for Recommend, 2 for Radio)
   final _navigatorKey = GlobalKey<NavigatorState>();
+
+  // 播放页覆盖层
+  bool _playerVisible = false;
+  late final AnimationController _playerController;
+  double _playerDragStartValue = 1.0; // 手势开始时动画值
+  double _playerDragDistance = 0; // 跟随手指的累计拖动距离
+  double _playerScreenWidth = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _playerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
+  @override
+  void dispose() {
+    _playerController.dispose();
+    super.dispose();
+  }
+
+  void _openPlayer() {
+    setState(() => _playerVisible = true);
+    _playerController.forward(from: 0);
+  }
+
+  void _closePlayer() {
+    _playerController.reverse().then((_) {
+      if (mounted) {
+        setState(() => _playerVisible = false);
+      }
+    });
+  }
+
+  Widget _wrapPlayerOverlay(Widget shell) {
+    return Stack(
+      children: [
+        shell,
+        if (_playerVisible)
+          Positioned.fill(
+            child: _buildPlayerOverlay(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPlayerOverlay() {
+    // 左缘手势条起点：TopBar（SafeArea + 8 padding + 48 按钮）之下，
+    // 避免 opaque 条遮挡播放页左上角返回按钮。
+    final topBarBottom = MediaQuery.paddingOf(context).top + 64;
+    return Stack(
+      children: [
+        SlideTransition(
+          position: _playerController.drive(
+            Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).chain(CurveTween(curve: Curves.easeOutCubic)),
+          ),
+          child: PlayerPage(
+            player: widget.player,
+            auth: widget.auth,
+            onClose: _closePlayer,
+          ),
+        ),
+        // 左缘手势条：opaque 独占左缘触摸（Stack 命中测试自上而下，命中后
+        // 不再交给下层 PageView），保证"从屏幕左边向右滑动关闭"一定生效。
+        Positioned(
+          left: 0,
+          top: topBarBottom,
+          bottom: 0,
+          width: 60,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: (details) {
+              _playerDragStartValue = _playerController.value;
+              _playerScreenWidth = MediaQuery.sizeOf(context).width;
+              _playerDragDistance = 0;
+            },
+            onHorizontalDragUpdate: (details) {
+              final delta = details.primaryDelta ?? 0;
+              _playerDragDistance += delta;
+              final maxDrag = _playerScreenWidth;
+              final progress = (_playerDragStartValue -
+                      (_playerDragDistance / maxDrag))
+                  .clamp(0.0, 1.0);
+              _playerController.value = progress;
+            },
+            onHorizontalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              final shouldClose = _playerDragDistance >
+                      _playerScreenWidth * 0.25 ||
+                  (velocity > 200 && _playerDragDistance > 0);
+              _playerDragDistance = 0;
+              if (shouldClose) {
+                _closePlayer();
+              } else {
+                _playerController.animateBack(1.0);
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
   int _getPortraitIndex() {
     return _index == 0 ? 1 : 0;
@@ -82,7 +191,7 @@ class _AppShellState extends State<AppShell> {
         base: baseTextScaler,
         multiplier: ThemeController.carModeFontScaleFactor,
       );
-      return MediaQuery(
+      return _wrapPlayerOverlay(MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: scaledTextScaler),
         child: PopScope(
           // 拦截 Android 返回键：先尝试 pop 内层 Navigator（搜索/设置/歌单等
@@ -108,6 +217,7 @@ class _AppShellState extends State<AppShell> {
                   child: CarLeftPlayerPanel(
                     player: widget.player,
                     auth: widget.auth,
+                    onOpenPlayer: _openPlayer,
                   ),
                 ),
                 const VerticalDivider(width: 1, thickness: 1),
@@ -171,7 +281,7 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
         ),
-      );
+      ));
     }
 
     // Original Portrait Layout
@@ -221,7 +331,11 @@ class _AppShellState extends State<AppShell> {
           right: 0,
           bottom:
               bottomInset + (useNavRail ? 16 : kBottomNavigationBarHeight + 10),
-          child: MiniPlayer(player: widget.player, auth: widget.auth),
+          child: MiniPlayer(
+            player: widget.player,
+            auth: widget.auth,
+            onOpenPlayer: _openPlayer,
+          ),
         ),
       ],
     );
@@ -265,7 +379,7 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
-    return Scaffold(
+    return _wrapPlayerOverlay(Scaffold(
       extendBody: true,
       body: AdaptiveContentPadding(child: mainContent),
       bottomNavigationBar: useNavRail
@@ -319,7 +433,7 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
             ),
-    );
+    ));
   }
 
   Widget _buildCarTopNavBar(BuildContext context, ColorScheme colorScheme) {

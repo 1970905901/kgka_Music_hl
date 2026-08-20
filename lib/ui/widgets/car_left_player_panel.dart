@@ -3,7 +3,6 @@ import '../design_tokens.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/player_controller.dart';
 import '../../models/music_models.dart';
-import '../pages/player_page.dart';
 import 'artwork.dart';
 import 'toast.dart';
 
@@ -12,10 +11,12 @@ class CarLeftPlayerPanel extends StatelessWidget {
     super.key,
     required this.player,
     required this.auth,
+    required this.onOpenPlayer,
   });
 
   final PlayerController player;
   final AuthController auth;
+  final VoidCallback onOpenPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +112,7 @@ class CarLeftPlayerPanel extends StatelessWidget {
                   // Album Art
                   Center(
                     child: GestureDetector(
-                      onTap: () => Navigator.of(context).push(
-                        PlayerPageRoute(
-                          builder: (_) => PlayerPage(player: player, auth: auth),
-                        ),
-                      ),
+                      onTap: onOpenPlayer,
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(AppRadius.lg),
