@@ -1778,8 +1778,10 @@ class _LyricPlayerPageState extends State<_LyricPlayerPage>
             lyricScale: _lyricScale,
           ),
           // 字体大小调节按钮（左侧底部）
+          // left:64 避开 AppShell 覆盖层的左缘 60px opaque 手势条，
+          // 否则"缩小歌词"按钮会被手势条拦截（无法点击）。
           Positioned(
-            left: 0,
+            left: 64,
             bottom: 16,
             child: Row(
               mainAxisSize: MainAxisSize.min,
