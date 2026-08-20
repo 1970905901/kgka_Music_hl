@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # 拉取 Git LFS 内容（lib/assets/logo.png 是 LFS 跟踪，AppIcon 需要真实图片）
+          lfs: true
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -60,6 +63,40 @@ jobs:
           # 应用显示名称改为「KA Music」（iOS 工程每次都会重建，故在此设置）
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName KA Music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string KA Music" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleName KA Music" ios/Runner/Info.plist || /usr/libexec/PlistBuddy -c "Add :CFBundleName string KA Music" ios/Runner/Info.plist
+
+      # 替换 AppIcon：用 lib/assets/logo.png（1024x1024）生成全部 iOS 图标尺寸。
+      # flutter create 重建工程后 AppIcon 是 Flutter 默认图标，这里用 sips（macOS
+      # 自带，无需额外依赖）从 logo 缩放生成并覆盖。
+      - name: Replace AppIcon with logo
+        run: |
+          LOGO=lib/assets/logo.png
+          DIR=ios/Runner/Assets.xcassets/AppIcon.appiconset
+          # 校验 logo 已由 LFS 拉取为真实图片（PNG 魔数）
+          if [ "$(head -c4 "$LOGO")" != "$(printf '\x89PNG')" ]; then
+            echo "❌ logo.png 不是真实 PNG（可能是 LFS pointer 未拉取）"
+            exit 1
+          fi
+          # 生成各尺寸（文件名必须与 Contents.json 一致）
+          gen() { # $1=文件名 $2=像素
+            sips -z "$2" "$2" "$LOGO" --out "$DIR/$1" >/dev/null
+            echo "  ✓ $1 ($2x$2)"
+          }
+          gen Icon-App-1024x1024@1x.png 1024
+          gen Icon-App-83.5x83.5@2x.png 167
+          gen Icon-App-76x76@2x.png 152
+          gen Icon-App-76x76@1x.png 76
+          gen Icon-App-60x60@3x.png 180
+          gen Icon-App-60x60@2x.png 120
+          gen Icon-App-40x40@3x.png 120
+          gen Icon-App-40x40@2x.png 80
+          gen Icon-App-40x40@1x.png 40
+          gen Icon-App-29x29@3x.png 87
+          gen Icon-App-29x29@2x.png 58
+          gen Icon-App-29x29@1x.png 29
+          gen Icon-App-20x20@3x.png 60
+          gen Icon-App-20x20@2x.png 40
+          gen Icon-App-20x20@1x.png 20
+          echo "✅ AppIcon 已替换为 logo"
 
       # 未签名打包：--no-codesign 跳过所有签名步骤，无需证书/描述文件
       # 显式关闭所有签名步骤，避免 Flutter 3.47.x 在缓存命中（复用已构建 Runner.app）时
