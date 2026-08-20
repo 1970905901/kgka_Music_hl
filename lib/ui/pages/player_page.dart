@@ -2466,13 +2466,17 @@ class _CommentEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 评论按钮（在左侧）
-          if (song.source == SongSource.kugou)
+    // Padding left:64 避开 AppShell 覆盖层左缘 60px opaque 手势条
+    // （与歌词缩放按钮同样的修复），让评论/游戏按钮可点击。
+    return Padding(
+      padding: const EdgeInsets.only(left: 64),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 评论按钮（在左侧）
+            if (song.source == SongSource.kugou)
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -2523,6 +2527,7 @@ class _CommentEntry extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
