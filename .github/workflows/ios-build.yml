@@ -49,8 +49,11 @@ jobs:
           # 而 flutter create 未指定 team 时该键根本不存在，会偶发误报
           # "requires a selected Development Team"。这里注入占位值让键存在
           # （值无所谓，--no-codesign 仍会跳过实际签名）。
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 0000000000;/' ios/Runner.xcodeproj/project.pbxproj || \
-            sed -i 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 0000000000;/' ios/Runner.xcodeproj/project.pbxproj
+          # 注意：CODE_SIGN_STYLE 只出现在 RunnerTests target 配置里，
+          # Runner target 必须用 INFOPLIST_FILE = Runner/Info.plist; 作为锚点。
+          perl -pi -e 's/(\t*INFOPLIST_FILE = Runner\/Info\.plist;)/$1\n\t\t\t\tDEVELOPMENT_TEAM = 0000000000;/' ios/Runner.xcodeproj/project.pbxproj
+          # 校验注入成功（三个 Runner 配置都应命中）
+          grep -c "DEVELOPMENT_TEAM = 0000000000" ios/Runner.xcodeproj/project.pbxproj
           /usr/libexec/PlistBuddy -c "Add UIBackgroundModes array" ios/Runner/Info.plist
           /usr/libexec/PlistBuddy -c "Add UIBackgroundModes:0 string audio" ios/Runner/Info.plist
           # 应用显示名称改为「KA Music」（iOS 工程每次都会重建，故在此设置）
