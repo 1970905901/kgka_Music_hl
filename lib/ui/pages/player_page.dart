@@ -2466,12 +2466,12 @@ class _CommentEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Padding left:64 避开 AppShell 覆盖层左缘 60px opaque 手势条
-    // （与歌词缩放按钮同样的修复），让评论/游戏按钮可点击。
+    // 按钮组靠右对齐（用户要求放最右边）；右缘无手势条，不会被遮挡，
+    // 也自然避开了左缘 60px opaque 手势条。
     return Padding(
-      padding: const EdgeInsets.only(left: 64),
+      padding: const EdgeInsets.only(right: 16),
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: Alignment.centerRight,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
