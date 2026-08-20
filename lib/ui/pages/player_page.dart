@@ -200,11 +200,20 @@ class _PlayerBodyState extends State<_PlayerBody> {
 
     return StatusBarOverlay(
       brightness: Brightness.dark,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            _ArtworkBackground(song: widget.song),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0.0;
+          // 从右向左快速滑动（primaryVelocity > 0 表示手指向右/页面向右退出）→ 关闭播放页
+          if (velocity > 250) {
+            widget.onClose();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              _ArtworkBackground(song: widget.song),
             SafeArea(
               // 横屏时同样需要处理顶部状态栏和底部系统导航栏（如车机空调控制栏）的遮挡。
               // 竖屏已由外层 Scaffold 处理，这里对所有方向统一保留 SafeArea。
@@ -263,6 +272,7 @@ class _PlayerBodyState extends State<_PlayerBody> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -2551,4 +2561,28 @@ class _PageDots extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 播放页专用路由：无 iOS 系统退场模糊。
+///
+/// 用自定义 [PageRouteBuilder] 实现右滑入/右滑出，避免 iOS 系统级页面
+/// 过渡在退场时给底层页面添加模糊遮罩。手势关闭走页面内的 onHorizontalDragEnd。
+class PlayerPageRoute<T> extends PageRouteBuilder<T> {
+  PlayerPageRoute({required WidgetBuilder builder})
+      : super(
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              builder(context),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            // 从右往左滑入；退场反向滑出。纯平移，无模糊。
+            final begin = const Offset(1.0, 0.0);
+            final tween = Tween<Offset>(begin: begin, end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic));
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        );
 }

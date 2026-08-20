@@ -112,7 +112,7 @@ class CarLeftPlayerPanel extends StatelessWidget {
                   Center(
                     child: GestureDetector(
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
+                        PlayerPageRoute(
                           builder: (_) => PlayerPage(player: player, auth: auth),
                         ),
                       ),

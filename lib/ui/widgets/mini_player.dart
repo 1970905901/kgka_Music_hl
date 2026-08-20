@@ -69,7 +69,7 @@ class MiniPlayer extends StatelessWidget {
                 ),
                 child: InkWell(
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
+                    PlayerPageRoute(
                       builder: (_) => PlayerPage(player: player, auth: auth),
                     ),
                   ),
