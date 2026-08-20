@@ -110,10 +110,20 @@ class _AppShellState extends State<AppShell>
               end: Offset.zero,
             ).chain(CurveTween(curve: Curves.easeOutCubic)),
           ),
-          child: PlayerPage(
-            player: widget.player,
-            auth: widget.auth,
-            onClose: _closePlayer,
+          // ClipRect 必须放在 SlideTransition 内部、包着 PlayerPage：
+          // 1) 播放页内的 _ArtworkBackground 使用 OverflowBox 把封面放大
+          //    1.5 倍 + ImageFiltered(blur 34)，模糊层是 offscreen layer
+          //    合成，会绕过外层 Stack 的 clip；ClipRect 作为 ImageFiltered
+          //    的 RenderObject 祖先能约束其绘制边界；
+          // 2) ClipRect 跟随 SlideTransition 移动，裁剪边界 = 移动后的
+          //    播放页边界，关闭时放大溢出的模糊封面被裁掉，不再盖在底层
+          //    首页上造成"模糊遮罩"。
+          child: ClipRect(
+            child: PlayerPage(
+              player: widget.player,
+              auth: widget.auth,
+              onClose: _closePlayer,
+            ),
           ),
         ),
         // 左缘手势条：opaque 独占左缘触摸（Stack 命中测试自上而下，命中后
