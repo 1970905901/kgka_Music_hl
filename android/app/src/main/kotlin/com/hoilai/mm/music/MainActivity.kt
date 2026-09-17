@@ -907,13 +907,13 @@ class MainActivity : AudioServiceActivity() {
                 20000.0f, // cutoffFrequency
                 50.0f, // attackTime
                 300.0f, // releaseTime
-                4.0f, // ratio
-                -15.0f, // threshold
-                2.0f, // kneeWidth
+                2.0f, // ratio: 4->2，压缩温和化，保留动态
+                -18.0f, // threshold: -15 -> -18，略放宽，让更多内容不触发压缩
+                6.0f, // kneeWidth: 2 -> 6，软拐点，过渡更平滑
                 -60.0f, // noiseGateThreshold
                 1.0f, // expanderRatio
                 2.0f, // preGain
-                0.0f // postGain
+                4.0f // postGain: 0 -> 4，makeup gain 增益补偿，整体提亮（老歌明显受益）
             )
 
             val limiter = DynamicsProcessing.Limiter(
