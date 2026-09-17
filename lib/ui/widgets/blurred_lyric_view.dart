@@ -173,15 +173,29 @@ class _BlurredLyricPainter extends LyricPainter {
   ) {
     final distance = (index - playIndex).abs();
     final shouldStaySharp = distance == 0 || (isSelecting && isInAnchorArea);
-    if (shouldStaySharp) {
+    if (shouldStaySharp || maxBlurSigma <= 0) {
       super.drawLine(canvas, metric, size, index, isInAnchorArea);
       return;
     }
 
     final sigma = math.min(maxBlurSigma, blurStep * distance).toDouble();
+    if (sigma < 0.5 || distance > 2) {
+      // 距离当前行超过 2 行的歌词已由文本透明度与边缘遮罩淡出，无需高开销的离屏 GPU 模糊
+      super.drawLine(canvas, metric, size, index, isInAnchorArea);
+      return;
+    }
+
     final blurPaint = Paint()
       ..imageFilter = ImageFilter.blur(sigmaX: sigma, sigmaY: sigma);
-    canvas.saveLayer(null, blurPaint);
+    final lineHeight = layout.getLineHeight(false, index);
+    final padding = layout.style.contentPadding;
+    final bounds = Rect.fromLTWH(
+      -padding.left,
+      -sigma * 2,
+      size.width + padding.horizontal,
+      lineHeight + sigma * 4,
+    );
+    canvas.saveLayer(bounds, blurPaint);
     super.drawLine(canvas, metric, size, index, isInAnchorArea);
     canvas.restore();
   }

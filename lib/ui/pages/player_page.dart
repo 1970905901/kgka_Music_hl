@@ -48,10 +48,13 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   static const _screenChannel = MethodChannel('kgka_music_hl/screen');
+  Song? _currentSong;
 
   @override
   void initState() {
     super.initState();
+    _currentSong = widget.player.currentSong;
+    widget.player.addListener(_onPlayerStateChanged);
     unawaited(_setKeepScreenOn(true));
     // 不在此处调用 setPreferredOrientations：方向策略由 ThemeController 全局管理。
     // 如果这里解锁方向，即使用户在设置里没开横屏模式，旋转手机时播放页也会
@@ -60,8 +63,20 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
+    widget.player.removeListener(_onPlayerStateChanged);
     unawaited(_setKeepScreenOn(false));
     super.dispose();
+  }
+
+  void _onPlayerStateChanged() {
+    final newSong = widget.player.currentSong;
+    if (_currentSong?.hash != newSong?.hash ||
+        _currentSong?.id != newSong?.id ||
+        (_currentSong == null) != (newSong == null)) {
+      setState(() {
+        _currentSong = newSong;
+      });
+    }
   }
 
   Future<void> _setKeepScreenOn(bool enabled) async {
@@ -76,22 +91,17 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.player,
-      builder: (context, _) {
-        final song = widget.player.currentSong;
-        if (song == null) {
-          return const Scaffold(body: SizedBox.shrink());
-        }
+    final song = _currentSong;
+    if (song == null) {
+      return const Scaffold(body: SizedBox.shrink());
+    }
 
-        return _PlayerBody(
-          player: widget.player,
-          auth: widget.auth,
-          song: song,
-          onClose: widget.onClose ?? () => Navigator.of(context).pop(),
-          onQueue: () => _showQueue(context),
-        );
-      },
+    return _PlayerBody(
+      player: widget.player,
+      auth: widget.auth,
+      song: song,
+      onClose: widget.onClose ?? () => Navigator.of(context).pop(),
+      onQueue: () => _showQueue(context),
     );
   }
 
@@ -214,7 +224,10 @@ class _PlayerBodyState extends State<_PlayerBody> {
           backgroundColor: Colors.black,
           body: Stack(
             children: [
-              _ArtworkBackground(song: widget.song),
+              _ArtworkBackground(
+                song: widget.song,
+                isPaused: _page == 1 && !_pageScrolling,
+              ),
             SafeArea(
               // 横屏时同样需要处理顶部状态栏和底部系统导航栏（如车机空调控制栏）的遮挡。
               // 竖屏已由外层 Scaffold 处理，这里对所有方向统一保留 SafeArea。
@@ -255,6 +268,7 @@ class _PlayerBodyState extends State<_PlayerBody> {
                                   player: widget.player,
                                   song: widget.song,
                                   onQueue: widget.onQueue,
+                                  isPageVisible: _page == 0 || _pageScrolling,
                                 ),
                                 _LyricPlayerPage(
                                   key: const PageStorageKey(
@@ -375,9 +389,13 @@ String _lyricDisplayModeLabel(_LyricDisplayMode mode) {
 }
 
 class _ArtworkBackground extends StatefulWidget {
-  const _ArtworkBackground({required this.song});
+  const _ArtworkBackground({
+    required this.song,
+    this.isPaused = false,
+  });
 
   final Song song;
+  final bool isPaused;
 
   @override
   State<_ArtworkBackground> createState() => _ArtworkBackgroundState();
@@ -394,14 +412,31 @@ class _ArtworkBackgroundState extends State<_ArtworkBackground>
     _rotationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 40),
-    )..repeat();
+    );
+    if (!widget.isPaused) {
+      _rotationController.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ArtworkBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isPaused != widget.isPaused) {
+      if (widget.isPaused) {
+        if (_rotationController.isAnimating) _rotationController.stop();
+      } else {
+        if (!_rotationController.isAnimating) _rotationController.repeat();
+      }
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      if (!_rotationController.isAnimating) _rotationController.repeat();
+      if (!widget.isPaused && !_rotationController.isAnimating) {
+        _rotationController.repeat();
+      }
     } else {
       if (_rotationController.isAnimating) _rotationController.stop();
     }
@@ -421,51 +456,53 @@ class _ArtworkBackgroundState extends State<_ArtworkBackground>
     final maxDim = math.max(size.width, size.height);
     final bgDim = maxDim.clamp(300.0, 900.0);
 
-    // 旋转动画背景是纯装饰性的，排除语义树防止 Windows AXTree 竞态崩溃
-    return ExcludeSemantics(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // 始终显示渐变兜底背景，避免封面加载期间出现纯黑背景
-          const _FallbackBackground(),
-          if (coverUrl != null)
-            Center(
-              child: SizedBox(
-                width: bgDim,
-                height: bgDim,
-                child: RotationTransition(
-                  turns: _rotationController,
-                  child: RepaintBoundary(
-                    child: ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-                      child: Image.network(
-                        coverUrl,
-                        fit: BoxFit.cover,
-                        cacheWidth: 360,
-                        cacheHeight: 360,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const SizedBox.shrink(),
+    // 旋转动画背景是纯装饰性的，排除语义树防止 Windows AXTree 竞态崩溃，并用 RepaintBoundary 彻底隔离图层
+    return RepaintBoundary(
+      child: ExcludeSemantics(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 始终显示渐变兜底背景，避免封面加载期间出现纯黑背景
+            const _FallbackBackground(),
+            if (coverUrl != null)
+              Center(
+                child: SizedBox(
+                  width: bgDim,
+                  height: bgDim,
+                  child: RotationTransition(
+                    turns: _rotationController,
+                    child: RepaintBoundary(
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                        child: Image.network(
+                          coverUrl,
+                          fit: BoxFit.cover,
+                          cacheWidth: 360,
+                          cacheHeight: 360,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: .32),
-                  Colors.black.withValues(alpha: .56),
-                  Colors.black.withValues(alpha: .82),
-                ],
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: .32),
+                    Colors.black.withValues(alpha: .56),
+                    Colors.black.withValues(alpha: .82),
+                  ],
+                ),
               ),
             ),
-          ),
-          ColoredBox(color: Colors.black.withValues(alpha: .12)),
-        ],
+            ColoredBox(color: Colors.black.withValues(alpha: .12)),
+          ],
+        ),
       ),
     );
   }
@@ -793,12 +830,17 @@ class _LandscapeArtworkShowcaseState extends State<_LandscapeArtworkShowcase>
       vsync: this,
       duration: const Duration(seconds: 32),
     );
+    widget.player.addListener(_syncRotation);
     _syncRotation();
   }
 
   @override
   void didUpdateWidget(covariant _LandscapeArtworkShowcase oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.player != widget.player) {
+      oldWidget.player.removeListener(_syncRotation);
+      widget.player.addListener(_syncRotation);
+    }
     if (oldWidget.song.hash != widget.song.hash) {
       _rotationController.value = 0;
     }
@@ -807,6 +849,7 @@ class _LandscapeArtworkShowcaseState extends State<_LandscapeArtworkShowcase>
 
   @override
   void dispose() {
+    widget.player.removeListener(_syncRotation);
     _rotationController.dispose();
     super.dispose();
   }
@@ -842,9 +885,10 @@ class _LandscapeArtworkShowcaseState extends State<_LandscapeArtworkShowcase>
           final coverSize = discSize * (widget.compact ? .58 : .70);
 
           return Center(
-            // 旋转唱片是纯装饰动画，排除语义树防止 Windows AXTree 竞态崩溃
-            child: ExcludeSemantics(
-              child: SizedBox.square(
+            // 旋转唱片是纯装饰动画，排除语义树防止 Windows AXTree 竞态崩溃，并外包 RepaintBoundary 隔离图层
+            child: RepaintBoundary(
+              child: ExcludeSemantics(
+                child: SizedBox.square(
                 dimension: discSize,
                 child: AnimatedBuilder(
                   animation: _rotationController,
@@ -911,7 +955,8 @@ class _LandscapeArtworkShowcaseState extends State<_LandscapeArtworkShowcase>
                 ),
               ),
             ),
-          );
+          ),
+        );
         },
       ),
     );
@@ -1321,11 +1366,13 @@ class _PosterPlayerPage extends StatefulWidget {
     required this.player,
     required this.song,
     required this.onQueue,
+    this.isPageVisible = true,
   });
 
   final PlayerController player;
   final Song song;
   final VoidCallback onQueue;
+  final bool isPageVisible;
 
   @override
   State<_PosterPlayerPage> createState() => _PosterPlayerPageState();
@@ -1364,7 +1411,10 @@ class _PosterPlayerPageState extends State<_PosterPlayerPage>
                 ),
               ),
               SizedBox(height: compact ? 14 : 26),
-              _PosterLyricPreview(player: widget.player),
+              _PosterLyricPreview(
+                player: widget.player,
+                isPageVisible: widget.isPageVisible,
+              ),
               if (!compact) const SizedBox(height: 4),
               _CommentEntry(player: widget.player, song: widget.song),
               const Spacer(),
@@ -1397,9 +1447,13 @@ int _activeLyricIndexFor(List<LyricLine> lyrics, Duration position) {
 }
 
 class _PosterLyricPreview extends StatefulWidget {
-  const _PosterLyricPreview({required this.player});
+  const _PosterLyricPreview({
+    required this.player,
+    this.isPageVisible = true,
+  });
 
   final PlayerController player;
+  final bool isPageVisible;
 
   @override
   State<_PosterLyricPreview> createState() => _PosterLyricPreviewState();
@@ -1408,18 +1462,24 @@ class _PosterLyricPreview extends StatefulWidget {
 class _PosterLyricPreviewState extends State<_PosterLyricPreview> {
   late final Ticker _ticker;
   Duration _position = Duration.zero;
+  int _currentIndex = -1;
 
   @override
   void initState() {
     super.initState();
     _position = widget.player.smoothPosition;
     _ticker = Ticker(_onTick);
+    widget.player.addListener(_syncTicker);
     _syncTicker();
   }
 
   @override
   void didUpdateWidget(covariant _PosterLyricPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.player != widget.player) {
+      oldWidget.player.removeListener(_syncTicker);
+      widget.player.addListener(_syncTicker);
+    }
     if (!widget.player.isScrubbing) {
       _position = widget.player.smoothPosition;
     }
@@ -1428,12 +1488,14 @@ class _PosterLyricPreviewState extends State<_PosterLyricPreview> {
 
   @override
   void dispose() {
+    widget.player.removeListener(_syncTicker);
     _ticker.dispose();
     super.dispose();
   }
 
   void _syncTicker() {
     final shouldTick =
+        widget.isPageVisible &&
         widget.player.isPlaying &&
         widget.player.lyrics.isNotEmpty &&
         !widget.player.isScrubbing;
@@ -1448,7 +1510,23 @@ class _PosterLyricPreviewState extends State<_PosterLyricPreview> {
     if (!mounted || widget.player.isScrubbing) {
       return;
     }
-    setState(() => _position = widget.player.smoothPosition);
+    final lyrics = widget.player.lyrics;
+    if (lyrics.isEmpty) return;
+    final newPos = widget.player.smoothPosition;
+    final newIndex = _activeLyricIndexFor(lyrics, newPos);
+    final clamped = newIndex.clamp(0, lyrics.length - 1);
+    final hasWords = lyrics[clamped].words.isNotEmpty;
+    if (hasWords) {
+      setState(() {
+        _currentIndex = newIndex;
+        _position = newPos;
+      });
+    } else if (newIndex != _currentIndex) {
+      setState(() {
+        _currentIndex = newIndex;
+        _position = newPos;
+      });
+    }
   }
 
   @override
@@ -1571,8 +1649,6 @@ class _MarqueeSingleLineState extends State<_MarqueeSingleLine>
         ..reset();
       _overflow = 0;
       WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
     }
   }
 
@@ -1661,6 +1737,7 @@ class _LyricPlayerPage extends StatefulWidget {
 class _LyricPlayerPageState extends State<_LyricPlayerPage>
     with AutomaticKeepAliveClientMixin {
   late _LyricDisplayMode _displayMode;
+  List<LyricLine> _lastLyrics = const [];
 
   /// 歌词字体缩放倍率（持久化）。
   static const _lyricScaleKey = 'settings.lyric_scale';
@@ -1669,8 +1746,28 @@ class _LyricPlayerPageState extends State<_LyricPlayerPage>
   @override
   void initState() {
     super.initState();
-    _displayMode = _initialLyricDisplayMode(widget.player.lyrics);
+    _lastLyrics = widget.player.lyrics;
+    _displayMode = _initialLyricDisplayMode(_lastLyrics);
     _loadLyricScale();
+    widget.player.addListener(_onPlayerLyricsChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.player.removeListener(_onPlayerLyricsChanged);
+    super.dispose();
+  }
+
+  void _onPlayerLyricsChanged() {
+    if (widget.player.lyrics != _lastLyrics) {
+      _lastLyrics = widget.player.lyrics;
+      setState(() {
+        _displayMode = _normalizeLyricDisplayMode(
+          _lastLyrics,
+          _displayMode,
+        );
+      });
+    }
   }
 
   Future<void> _loadLyricScale() async {
@@ -1693,6 +1790,10 @@ class _LyricPlayerPageState extends State<_LyricPlayerPage>
   @override
   void didUpdateWidget(covariant _LyricPlayerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.player != widget.player) {
+      oldWidget.player.removeListener(_onPlayerLyricsChanged);
+      widget.player.addListener(_onPlayerLyricsChanged);
+    }
     if (oldWidget.song.hash != widget.song.hash ||
         oldWidget.player.lyrics != widget.player.lyrics) {
       _displayMode = _normalizeLyricDisplayMode(
@@ -1825,8 +1926,8 @@ class _LyricViewport extends StatefulWidget {
 
 class _LyricViewportState extends State<_LyricViewport> {
   static const double _lyricAnchorFraction = 0.43;
-  static const double _lyricBlurSigma = 3.0;
-  static const double _lyricBlurStep = 0.7;
+  static const double _lyricBlurSigma = 1.8;
+  static const double _lyricBlurStep = 0.6;
 
   late final LyricController _lyricController;
   late final Ticker _ticker;
@@ -1842,12 +1943,17 @@ class _LyricViewportState extends State<_LyricViewport> {
     _lyricController.isSelectingNotifier.addListener(_onSelectingChanged);
     _syncLyrics();
     _ticker = Ticker(_onTick);
+    widget.player.addListener(_syncTicker);
     _syncTicker();
   }
 
   @override
   void didUpdateWidget(covariant _LyricViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.player != widget.player) {
+      oldWidget.player.removeListener(_syncTicker);
+      widget.player.addListener(_syncTicker);
+    }
     if (oldWidget.lyrics != widget.lyrics ||
         oldWidget.displayMode != widget.displayMode) {
       _syncLyrics();
@@ -1857,6 +1963,7 @@ class _LyricViewportState extends State<_LyricViewport> {
 
   @override
   void dispose() {
+    widget.player.removeListener(_syncTicker);
     _lyricController.isSelectingNotifier.removeListener(_onSelectingChanged);
     _ticker.dispose();
     _lyricController.dispose();
@@ -2166,113 +2273,118 @@ class _Progress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final max = player.duration.inMilliseconds <= 0
-        ? 1.0
-        : player.duration.inMilliseconds.toDouble();
-    final value = player.smoothPosition.inMilliseconds
-        .clamp(0, max.toInt())
-        .toDouble();
-    final textColor = bright
-        ? Colors.white.withValues(alpha: .64)
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    // 高潮片段时间点（进度条小圆点），无高潮或无效时为空。
-    final climax = player.climax;
-    final climaxFraction = climax != null &&
-            climax.isValid &&
-            max > 0 &&
-            climax.startTime.inMilliseconds <= max.toInt()
-        ? climax.startTime.inMilliseconds / max
-        : null;
+    return AnimatedBuilder(
+      animation: player,
+      builder: (context, _) {
+        final max = player.duration.inMilliseconds <= 0
+            ? 1.0
+            : player.duration.inMilliseconds.toDouble();
+        final value = player.smoothPosition.inMilliseconds
+            .clamp(0, max.toInt())
+            .toDouble();
+        final textColor = bright
+            ? Colors.white.withValues(alpha: .64)
+            : Theme.of(context).colorScheme.onSurfaceVariant;
+        // 高潮片段时间点（进度条小圆点），无高潮或无效时为空。
+        final climax = player.climax;
+        final climaxFraction = climax != null &&
+                climax.isValid &&
+                max > 0 &&
+                climax.startTime.inMilliseconds <= max.toInt()
+            ? climax.startTime.inMilliseconds / max
+            : null;
 
-    return Column(
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final thumbRadius = compact ? 4.0 : 5.0;
-            final dotSize = compact ? 7.0 : 8.0;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: compact ? 3 : 5,
-                    thumbShape: RoundSliderThumbShape(
-                      enabledThumbRadius: compact ? 4 : 5,
+        return Column(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final thumbRadius = compact ? 4.0 : 5.0;
+                final dotSize = compact ? 7.0 : 8.0;
+                return Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: compact ? 3 : 5,
+                        thumbShape: RoundSliderThumbShape(
+                          enabledThumbRadius: compact ? 4 : 5,
+                        ),
+                        overlayShape: RoundSliderOverlayShape(
+                          overlayRadius: compact ? 10 : 14,
+                        ),
+                        activeTrackColor: bright
+                            ? Colors.white.withValues(alpha: .86)
+                            : Theme.of(context).colorScheme.primary,
+                        inactiveTrackColor: bright
+                            ? Colors.white.withValues(alpha: .25)
+                            : Theme.of(context).colorScheme.surfaceContainerHighest,
+                        thumbColor: Colors.white,
+                      ),
+                      child: Slider(
+                        value: value,
+                        max: max,
+                        onChanged: (value) =>
+                            player.previewSeek(
+                                Duration(milliseconds: value.round())),
+                        onChangeEnd: (value) =>
+                            player.seek(Duration(milliseconds: value.round())),
+                      ),
                     ),
-                    overlayShape: RoundSliderOverlayShape(
-                      overlayRadius: compact ? 10 : 14,
-                    ),
-                    activeTrackColor: bright
-                        ? Colors.white.withValues(alpha: .86)
-                        : Theme.of(context).colorScheme.primary,
-                    inactiveTrackColor: bright
-                        ? Colors.white.withValues(alpha: .25)
-                        : Theme.of(context).colorScheme.surfaceContainerHighest,
-                    thumbColor: Colors.white,
-                  ),
-                  child: Slider(
-                    value: value,
-                    max: max,
-                    onChanged: (value) =>
-                        player.previewSeek(
-                            Duration(milliseconds: value.round())),
-                    onChangeEnd: (value) =>
-                        player.seek(Duration(milliseconds: value.round())),
-                  ),
-                ),
-                if (climaxFraction != null)
-                  Positioned(
-                    left: thumbRadius +
-                        climaxFraction * (width - 2 * thumbRadius) -
-                        dotSize / 2,
-                    top: 24 - dotSize / 2,
-                    child: IgnorePointer(
-                      child: Container(
-                        width: dotSize,
-                        height: dotSize,
-                        decoration: BoxDecoration(
-                          color: bright
-                              ? Colors.white
-                              : Theme.of(context).colorScheme.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: bright
-                                ? Colors.black.withValues(alpha: .4)
-                                : Colors.white,
-                            width: 1.2,
+                    if (climaxFraction != null)
+                      Positioned(
+                        left: thumbRadius +
+                            climaxFraction * (width - 2 * thumbRadius) -
+                            dotSize / 2,
+                        top: 24 - dotSize / 2,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: dotSize,
+                            height: dotSize,
+                            decoration: BoxDecoration(
+                              color: bright
+                                  ? Colors.white
+                                  : Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: bright
+                                    ? Colors.black.withValues(alpha: .4)
+                                    : Colors.white,
+                                width: 1.2,
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                  ],
+                );
+              },
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 4),
+              child: Row(
+                children: [
+                  Text(
+                    formatDuration(player.smoothPosition),
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: compact ? 12 : null,
                     ),
                   ),
-              ],
-            );
-          },
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: compact ? 2 : 4),
-          child: Row(
-            children: [
-              Text(
-                formatDuration(player.smoothPosition),
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: compact ? 12 : null,
-                ),
+                  const Spacer(),
+                  Text(
+                    formatDuration(player.duration),
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: compact ? 12 : null,
+                    ),
+                  ),
+                ],
               ),
-              const Spacer(),
-              Text(
-                formatDuration(player.duration),
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: compact ? 12 : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2294,107 +2406,118 @@ class _Controls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = bright
-        ? Colors.white
-        : Theme.of(context).colorScheme.onSurface;
-    final size = MediaQuery.sizeOf(context);
-    final isLandscape = size.width > size.height;
+    return AnimatedBuilder(
+      animation: player,
+      builder: (context, _) {
+        final color = bright
+            ? Colors.white
+            : Theme.of(context).colorScheme.onSurface;
+        final size = MediaQuery.sizeOf(context);
+        final isLandscape = size.width > size.height;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = compactOverride || constraints.maxWidth < 360;
-        final dense = denseOverride;
-        // 超大按钮仅在车机模式开启时使用，普通横屏用标准尺寸。
-        final isCar = isLandscape && ThemeController.instance.carModeEnabled;
-        final edgeButtonSize = dense ? 34.0 : (isCar ? 56.0 : (compact ? 40.0 : 44.0));
-        final edgeIconSize = dense ? 21.0 : (isCar ? 34.0 : (compact ? 24.0 : 27.0));
-        final skipButtonSize = dense ? 42.0 : (isCar ? 72.0 : (compact ? 50.0 : 56.0));
-        final skipIconSize = dense ? 33.0 : (isCar ? 54.0 : (compact ? 40.0 : 46.0));
-        final playButtonSize = dense ? 58.0 : (isCar ? 96.0 : (compact ? 72.0 : 82.0));
-        final playIconSize = dense ? 46.0 : (isCar ? 72.0 : (compact ? 56.0 : 64.0));
-        final gap = dense ? 3.0 : (isCar ? 24.0 : (compact ? 5.0 : 9.0));
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = compactOverride || constraints.maxWidth < 360;
+            final dense = denseOverride;
+            // 超大按钮仅在车机模式开启时使用，普通横屏用标准尺寸。
+            final isCar = isLandscape && ThemeController.instance.carModeEnabled;
+            final edgeButtonSize = dense ? 34.0 : (isCar ? 56.0 : (compact ? 40.0 : 44.0));
+            final edgeIconSize = dense ? 21.0 : (isCar ? 34.0 : (compact ? 24.0 : 27.0));
+            final skipButtonSize = dense ? 42.0 : (isCar ? 72.0 : (compact ? 50.0 : 56.0));
+            final skipIconSize = dense ? 33.0 : (isCar ? 54.0 : (compact ? 40.0 : 46.0));
+            final playButtonSize = dense ? 58.0 : (isCar ? 96.0 : (compact ? 72.0 : 82.0));
+            final playIconSize = dense ? 46.0 : (isCar ? 72.0 : (compact ? 56.0 : 64.0));
+            final gap = dense ? 3.0 : (isCar ? 24.0 : (compact ? 5.0 : 9.0));
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox.square(
-              dimension: edgeButtonSize,
-              child: IconButton(
-                tooltip: player.playbackModeLabel,
-                color: color,
-                iconSize: edgeIconSize,
-                padding: EdgeInsets.zero,
-                onPressed: () {
-                  player.cyclePlaybackMode();
-                  Toast.show(
-                    '已切换到${player.playbackModeLabel}',
-                    duration: const Duration(milliseconds: 1100),
-                  );
-                },
-                icon: Icon(_playbackModeIcon(player.playbackMode)),
-              ),
-            ),
-            SizedBox(width: gap),
-            SizedBox.square(
-              dimension: skipButtonSize,
-              child: IconButton(
-                tooltip: '上一首',
-                color: color,
-                iconSize: skipIconSize,
-                padding: EdgeInsets.zero,
-                onPressed: player.previous,
-                icon: const Icon(Icons.skip_previous_rounded),
-              ),
-            ),
-            SizedBox(width: gap),
-            SizedBox.square(
-              dimension: playButtonSize,
-              child: IconButton(
-                tooltip: player.isPlaying ? '暂停' : '播放',
-                color: color,
-                padding: EdgeInsets.zero,
-                onPressed: player.isPreparing ? null : player.togglePlay,
-                iconSize: playIconSize,
-                icon: player.isPreparing
-                    ? SizedBox.square(
-                        dimension: isCar ? 36 : (compact ? 24 : 28),
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 3,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        player.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                      ),
-              ),
-            ),
-            SizedBox(width: gap),
-            SizedBox.square(
-              dimension: skipButtonSize,
-              child: IconButton(
-                tooltip: '下一首',
-                color: color,
-                iconSize: skipIconSize,
-                padding: EdgeInsets.zero,
-                onPressed: player.next,
-                icon: const Icon(Icons.skip_next_rounded),
-              ),
-            ),
-            SizedBox(width: gap),
-            SizedBox.square(
-              dimension: edgeButtonSize,
-              child: IconButton(
-                tooltip: '播放列表',
-                color: color,
-                iconSize: edgeIconSize,
-                padding: EdgeInsets.zero,
-                onPressed: onQueue,
-                icon: const Icon(Icons.queue_music_rounded),
-              ),
-            ),
-          ],
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox.square(
+                  dimension: edgeButtonSize,
+                  child: IconButton(
+                    tooltip: player.playbackModeLabel,
+                    color: color,
+                    iconSize: edgeIconSize,
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      player.cyclePlaybackMode();
+                      Toast.show(
+                        '已切换到${player.playbackModeLabel}',
+                        duration: const Duration(milliseconds: 1100),
+                      );
+                    },
+                    icon: Icon(_playbackModeIcon(player.playbackMode)),
+                  ),
+                ),
+                SizedBox(width: gap),
+                SizedBox.square(
+                  dimension: skipButtonSize,
+                  child: IconButton(
+                    tooltip: '上一首',
+                    color: color,
+                    iconSize: skipIconSize,
+                    padding: EdgeInsets.zero,
+                    onPressed: player.previous,
+                    icon: const Icon(Icons.skip_previous_rounded),
+                  ),
+                ),
+                SizedBox(width: gap),
+                SizedBox.square(
+                  dimension: playButtonSize,
+                  child: Material(
+                    color: bright
+                        ? Colors.white.withValues(alpha: .18)
+                        : Theme.of(context).colorScheme.primaryContainer,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: player.isPlaying ? '暂停' : '播放',
+                      color: color,
+                      iconSize: playIconSize,
+                      padding: EdgeInsets.zero,
+                      onPressed: player.togglePlay,
+                      icon: player.isBuffering
+                          ? SizedBox.square(
+                              dimension: playIconSize * .58,
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2.6,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              player.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                            ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: gap),
+                SizedBox.square(
+                  dimension: skipButtonSize,
+                  child: IconButton(
+                    tooltip: '下一首',
+                    color: color,
+                    iconSize: skipIconSize,
+                    padding: EdgeInsets.zero,
+                    onPressed: player.next,
+                    icon: const Icon(Icons.skip_next_rounded),
+                  ),
+                ),
+                SizedBox(width: gap),
+                SizedBox.square(
+                  dimension: edgeButtonSize,
+                  child: IconButton(
+                    tooltip: '播放列表',
+                    color: color,
+                    iconSize: edgeIconSize,
+                    padding: EdgeInsets.zero,
+                    onPressed: onQueue,
+                    icon: const Icon(Icons.queue_music_rounded),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
