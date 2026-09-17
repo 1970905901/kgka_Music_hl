@@ -31,6 +31,7 @@ class ThemeController extends ChangeNotifier {
   static const _landscapeEnabledKey = 'theme.landscape_enabled';
   static const _carModeEnabledKey = 'theme.car_mode_enabled';
   static const _fontScaleKey = 'theme.font_scale';
+  static const _themeModeKey = 'theme.mode';
 
   /// 全局字体大小档位（1.0 = 标准，1.1 = 大，1.2 = 特大）。
   static const fontScaleOptions = [1.0, 1.1, 1.2];
@@ -51,6 +52,7 @@ class ThemeController extends ChangeNotifier {
   ];
 
   Color _seedColor = const Color(0xFF1478FF);
+  ThemeMode _themeMode = ThemeMode.system;
   bool _backgroundEnabled = false;
   String? _backgroundImagePath;
   double _backgroundOpacity = 0.15;
@@ -65,6 +67,12 @@ class ThemeController extends ChangeNotifier {
   bool? _lastAppliedCarModeEnabled;
 
   Color get seedColor => _seedColor;
+  ThemeMode get themeMode => _themeMode;
+  String get themeModeLabel => switch (_themeMode) {
+        ThemeMode.system => '跟随系统',
+        ThemeMode.light => '浅色模式',
+        ThemeMode.dark => '深色模式',
+      };
   bool get backgroundEnabled => _backgroundEnabled;
   String? get backgroundImagePath => _backgroundImagePath;
   double get backgroundOpacity => _backgroundOpacity;
@@ -106,6 +114,14 @@ class ThemeController extends ChangeNotifier {
     if (opacity != null) {
       _backgroundOpacity = opacity.clamp(0.0, 0.8);
     }
+    final themeModeValue = prefs.getString(_themeModeKey);
+    if (themeModeValue != null) {
+      _themeMode = switch (themeModeValue) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+    }
     applyOrientations(AdaptiveLayout.isTabletByPlatform());
     notifyListeners();
 
@@ -114,6 +130,15 @@ class ThemeController extends ChangeNotifier {
       final provider = FileImage(File(_backgroundImagePath!));
       provider.resolve(ImageConfiguration.empty);
     }
+  }
+
+  /// 设置全局外观模式（跟随系统/浅色/深色）。
+  Future<void> setThemeMode(ThemeMode mode) async {
+    if (_themeMode == mode) return;
+    _themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModeKey, mode.name);
+    notifyListeners();
   }
 
   /// 设置全局种子色。

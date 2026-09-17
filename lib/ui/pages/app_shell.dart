@@ -102,6 +102,8 @@ class _AppShellState extends State<AppShell>
     // 左缘手势条起点：TopBar（SafeArea + 8 padding + 48 按钮）之下，
     // 避免 opaque 条遮挡播放页左上角返回按钮。
     final topBarBottom = MediaQuery.paddingOf(context).top + 64;
+    // 底部留出控制按钮与歌词缩放按钮区域，避免 opaque 条遮挡点击。
+    final bottomControlsHeight = MediaQuery.paddingOf(context).bottom + 96;
     return Stack(
       children: [
         SlideTransition(
@@ -134,7 +136,7 @@ class _AppShellState extends State<AppShell>
         Positioned(
           left: 0,
           top: topBarBottom,
-          bottom: 0,
+          bottom: bottomControlsHeight,
           width: 60,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,

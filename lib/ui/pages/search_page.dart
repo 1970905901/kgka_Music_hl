@@ -15,6 +15,7 @@ import '../widgets/mini_player.dart';
 import '../widgets/now_playing_badge.dart';
 import '../widgets/song_action_sheets.dart';
 import '../widgets/toast.dart';
+import '../widgets/marquee_text.dart';
 import '../adaptive_layout.dart';
 import 'artist_detail_page.dart';
 import 'playlist_detail_page.dart';
@@ -65,14 +66,20 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _focusNode.requestFocus();
+    _focusNode.addListener(_onFocusChanged);
     _loadHotKeywords();
     _loadSearchHistory();
     _controller.addListener(_onTextChanged);
   }
 
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
+    _focusNode.removeListener(_onFocusChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -101,6 +108,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _onTextChanged() {
+    setState(() {});
     _debounce?.cancel();
     final text = _controller.text.trim();
     if (text.isEmpty) {
@@ -128,6 +136,7 @@ class _SearchPageState extends State<SearchPage> {
 
   Future<void> _search(String keywords) async {
     if (keywords.isEmpty) return;
+    _focusNode.unfocus();
     _debounce?.cancel();
     setState(() {
       _loading = true;
@@ -259,31 +268,78 @@ class _SearchPageState extends State<SearchPage> {
               color: colorScheme.surfaceContainerHighest.withValues(alpha: .54),
               borderRadius: BorderRadius.circular(AppRadius.xxl),
             ),
-            child: TextField(
-              controller: _controller,
-              focusNode: _focusNode,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _onSubmit(),
-              style: Theme.of(context).textTheme.bodyLarge,
-              decoration: InputDecoration(
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: colorScheme.onSurfaceVariant,
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _onSubmit(),
+                  textAlignVertical: TextAlignVertical.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: (!_focusNode.hasFocus && _controller.text.isNotEmpty)
+                        ? Colors.transparent
+                        : colorScheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 46,
+                      minHeight: 46,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    suffixIconConstraints: const BoxConstraints(
+                      minWidth: 46,
+                      minHeight: 46,
+                    ),
+                    suffixIcon: _controller.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            padding: EdgeInsets.zero,
+                            onPressed: () {
+                              _controller.clear();
+                              _focusNode.requestFocus();
+                            },
+                          )
+                        : null,
+                    hintText: '搜索歌曲、歌手、专辑',
+                    hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
                 ),
-                suffixIcon: _controller.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () {
-                          _controller.clear();
-                          _focusNode.requestFocus();
-                        },
-                      )
-                    : null,
-                hintText: '搜索歌曲、歌手、专辑',
-                hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 11),
-              ),
+                if (!_focusNode.hasFocus && _controller.text.isNotEmpty)
+                  Positioned.fill(
+                    left: 46,
+                    right: 46,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => _focusNode.requestFocus(),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: IgnorePointer(
+                          child: MarqueeText(
+                            text: _controller.text,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -350,35 +406,91 @@ class _SearchPageState extends State<SearchPage> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: SizedBox(
               height: 38,
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _onSubmit(),
-                style: Theme.of(context).textTheme.bodyLarge,
-                decoration: InputDecoration(
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: colorScheme.onSurfaceVariant,
-                    size: 20,
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _onSubmit(),
+                    textAlignVertical: TextAlignVertical.center,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
+                      color: (!_focusNode.hasFocus && _controller.text.isNotEmpty)
+                          ? Colors.transparent
+                          : colorScheme.onSurface,
+                    ),
+                    cursorColor: colorScheme.primary,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 38,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: colorScheme.onSurfaceVariant,
+                        size: 20,
+                      ),
+                      suffixIconConstraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 38,
+                      ),
+                      suffixIcon: _controller.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                              padding: EdgeInsets.zero,
+                              splashRadius: 16,
+                              constraints: const BoxConstraints(
+                                minWidth: 36,
+                                minHeight: 38,
+                              ),
+                              onPressed: () {
+                                _controller.clear();
+                                _focusNode.requestFocus();
+                              },
+                            )
+                          : null,
+                      hintText: '搜索歌曲、歌手、专辑',
+                      hintStyle: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 14,
+                      ),
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 0,
+                      ),
+                    ),
                   ),
-                  suffixIcon: _controller.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                          onPressed: () {
-                            _controller.clear();
-                            _focusNode.requestFocus();
-                          },
-                        )
-                      : null,
-                  hintText: '搜索歌曲、歌手、专辑',
-                  hintStyle: TextStyle(
-                    color: colorScheme.onSurfaceVariant,
-                    fontSize: 14,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                ),
+                  if (!_focusNode.hasFocus && _controller.text.isNotEmpty)
+                    Positioned.fill(
+                      left: 36,
+                      right: 36,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => _focusNode.requestFocus(),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: IgnorePointer(
+                            child: MarqueeText(
+                              text: _controller.text,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w500,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -1105,14 +1217,12 @@ class _AlbumResults extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        album.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      MarqueeText(
+                        text: album.name,
                         style: Theme.of(context).textTheme.titleSmall
                             ?.copyWith(
                               fontWeight: FontWeight.w700,
-                              fontSize: 16,
+                              fontSize: 14.5,
                             ),
                       ),
                       if (subtitle.isNotEmpty) ...[
@@ -1125,6 +1235,7 @@ class _AlbumResults extends StatelessWidget {
                               ?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w500,
+                                fontSize: 13,
                               ),
                         ),
                       ],
@@ -1236,15 +1347,13 @@ class _SearchResults extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              MarqueeText(
+                                text: song.title,
                                 style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
                                       color: active ? activeColor : null,
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 16,
+                                      fontSize: 14.5,
                                     ),
                               ),
                               const SizedBox(height: 4),
@@ -1258,6 +1367,7 @@ class _SearchResults extends StatelessWidget {
                                           ? activeColor.withValues(alpha: .72)
                                           : colorScheme.onSurfaceVariant,
                                       fontWeight: FontWeight.w500,
+                                      fontSize: 13,
                                     ),
                               ),
                             ],

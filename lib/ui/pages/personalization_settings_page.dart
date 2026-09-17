@@ -32,6 +32,18 @@ class _PersonalizationSettingsPageState
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
+              // ===== 外观模式 =====
+              _SectionHeader(title: '外观模式'),
+              const SizedBox(height: 8),
+              _SettingsCard(
+                children: [
+                  _ThemeModeSelector(
+                    currentMode: tc.themeMode,
+                    onChanged: (mode) => tc.setThemeMode(mode),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
               // ===== 配色方案 =====
               _SectionHeader(title: '配色方案'),
               const SizedBox(height: 8),
@@ -630,6 +642,108 @@ class _SettingsDivider extends StatelessWidget {
       height: 1,
       indent: 62,
       color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .4),
+    );
+  }
+}
+
+class _ThemeModeSelector extends StatelessWidget {
+  const _ThemeModeSelector({
+    required this.currentMode,
+    required this.onChanged,
+  });
+
+  final ThemeMode currentMode;
+  final ValueChanged<ThemeMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final modes = [
+      (ThemeMode.system, '跟随系统', Icons.brightness_auto_rounded),
+      (ThemeMode.light, '浅色模式', Icons.light_mode_rounded),
+      (ThemeMode.dark, '深色模式', Icons.dark_mode_rounded),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          for (var i = 0; i < modes.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            Expanded(
+              child: _ThemeModeOption(
+                mode: modes[i].$1,
+                label: modes[i].$2,
+                icon: modes[i].$3,
+                selected: currentMode == modes[i].$1,
+                onTap: () => onChanged(modes[i].$1),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeModeOption extends StatelessWidget {
+  const _ThemeModeOption({
+    required this.mode,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ThemeMode mode;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected
+          ? colorScheme.primaryContainer
+          : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: selected ? colorScheme.primary : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 26,
+                color: selected
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

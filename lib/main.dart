@@ -180,7 +180,7 @@ class _KaMusicAppState extends State<KaMusicApp> with WidgetsBindingObserver {
           title: AppConfig.appName,
           debugShowCheckedModeBanner: false,
           navigatorKey: Toast.navigatorKey,
-          themeMode: ThemeMode.system,
+          themeMode: _theme.themeMode,
           theme: AppTheme.light(
             seedColor: _theme.seedColor,
             transparentBackground: _theme.backgroundEnabled,

@@ -104,6 +104,62 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
+  Future<void> _selectThemeMode(
+    BuildContext context,
+    ThemeController theme,
+  ) async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final options = [
+      (ThemeMode.system, '跟随系统', '自动匹配系统深浅色设置'),
+      (ThemeMode.light, '浅色模式', '强制保持浅色外观'),
+      (ThemeMode.dark, '深色模式', '强制保持夜间深色外观'),
+    ];
+    final selected = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: colorScheme.surface,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '外观模式',
+                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                for (final item in options) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      item.$1 == theme.themeMode
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      color: item.$1 == theme.themeMode
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(item.$2),
+                    subtitle: Text(item.$3),
+                    onTap: () => Navigator.of(sheetContext).pop(item.$1),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      await theme.setThemeMode(selected);
+    }
+  }
+
   void _openVipInfo(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -302,6 +358,24 @@ class SettingsPage extends StatelessWidget {
                       value: player.addListeningTimeEnabled,
                       onChanged: player.setAddListeningTimeEnabled,
                     ),
+                    _SettingsDivider(),
+                    _SettingsSwitchTile(
+                      icon: Icons.stay_current_portrait_rounded,
+                      iconColor: colorScheme.primary,
+                      title: '播放页面保持屏幕常亮',
+                      subtitle: '开启后全屏播放页保持常亮，关闭后跟随系统自动休眠',
+                      value: player.keepScreenOnEnabled,
+                      onChanged: player.setKeepScreenOnEnabled,
+                    ),
+                    _SettingsDivider(),
+                    _SettingsSwitchTile(
+                      icon: Icons.blur_on_rounded,
+                      iconColor: colorScheme.primary,
+                      title: '歌词非高亮行高斯模糊',
+                      subtitle: '全屏歌词非当前行呈现景深模糊效果（默认关闭，若卡顿建议关闭）',
+                      value: player.lyricBlurEnabled,
+                      onChanged: player.setLyricBlurEnabled,
+                    ),
                     if (player.isDesktopLyricsSupported) ...[
                       _SettingsDivider(),
                       _SettingsSwitchTile(
@@ -384,6 +458,14 @@ class SettingsPage extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ),
+                    _SettingsDivider(),
+                    _SettingsTile(
+                      icon: Icons.dark_mode_rounded,
+                      iconColor: colorScheme.primary,
+                      title: '外观模式',
+                      subtitle: theme.themeModeLabel,
+                      onTap: () => _selectThemeMode(context, theme),
                     ),
                     _SettingsDivider(),
                     _SettingsTile(
