@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../widgets/liquid_glass_ui.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_section.dart';
+import '../widgets/scroll_to_top_button.dart';
 import '../design_tokens.dart';
 
 import '../../config/app_config.dart';
@@ -62,6 +64,7 @@ class _HomePageState extends State<HomePage> {
   static _HomeData? _cachedData;
   static bool _hasAutoPlayed = false;
 
+  final _scrollController = ScrollController();
   Future<_HomeData>? _future;
   late final AppUpdateService _updateService;
   AppVersionInfo? _availableUpdate;
@@ -108,6 +111,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     widget.auth.removeListener(_handleAuthChanged);
     super.dispose();
   }
@@ -536,119 +540,150 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_HomeData>(
-      future: _future,
-      builder: (context, snapshot) {
-        final data = snapshot.data ?? _cachedData;
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              if (data == null &&
-                  (_future == null ||
-                      snapshot.connectionState == ConnectionState.waiting))
-                const SliverToBoxAdapter(child: _HomeSkeleton())
-              else if (data == null && snapshot.hasError)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: AppErrorView(
-                    title: '暂时连接不上音乐服务',
-                    icon: Icons.wifi_off_rounded,
-                    message: snapshot.error.toString(),
-                    onRetry: _refresh,
-                  ),
-                )
-              else ...[
-                SliverToBoxAdapter(
-                  child: _RecommendHeader(
-                    auth: widget.auth,
-                    albums: data!.albums,
-                    sectionIndex: _sectionIndex,
-                    onSectionChanged: (value) {
-                      if (value == -1) {
-                        widget.onTabSwitch?.call(0); // Switch to My tab
-                      } else {
-                        setState(() => _sectionIndex = value);
-                        widget.onTabSwitch?.call(value == 0 ? 1 : 2);
-                      }
-                    },
-                    onPersonalFmPlay: _startPersonalFm,
-                    isPersonalFmLoading:
-                        _isStartingPersonalFm || _isLoadingPersonalFmPreview,
-                    personalFmPreviewSong: _personalFmPreviewSongs.isEmpty
-                        ? null
-                        : _personalFmPreviewSongs.first,
-                    onAlbumTap: _openAlbumShop,
-                    api: widget.api,
-                    player: widget.player,
-                    updateVersion: _updateBannerDismissed
-                        ? null
-                        : _availableUpdate,
-                    onUpdateTap: () {
-                      _showUpdateDetails();
-                    },
-                    onUpdateClose: () {
-                      setState(() => _updateBannerDismissed = true);
-                    },
-                    onSettingsTap: _openSettings,
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Column(
-                    children: [
-                      _PersistentTabPane(
-                        visible: _sectionIndex == 0,
+    final size = MediaQuery.sizeOf(context);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final isLandscape = size.width > size.height;
+    final isCarMode = isLandscape && ThemeController.instance.carModeEnabled;
+    final useNavRail = size.width >= 720;
+    final hasBottomBar = !isCarMode && !useNavRail;
+    final buttonBottom = bottomInset + (hasBottomBar ? 84.0 : 20.0);
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: FutureBuilder<_HomeData>(
+            future: _future,
+            builder: (context, snapshot) {
+              final data = snapshot.data ?? _cachedData;
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    if (data == null &&
+                        (_future == null ||
+                            snapshot.connectionState == ConnectionState.waiting))
+                      const SliverToBoxAdapter(child: _HomeSkeleton())
+                    else if (data == null && snapshot.hasError)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: AppErrorView(
+                          title: '暂时连接不上音乐服务',
+                          icon: Icons.wifi_off_rounded,
+                          message: snapshot.error.toString(),
+                          onRetry: _refresh,
+                        ),
+                      )
+                    else ...[
+                      SliverToBoxAdapter(
+                        child: _RecommendHeader(
+                          auth: widget.auth,
+                          albums: data!.albums,
+                          sectionIndex: _sectionIndex,
+                          onSectionChanged: (value) {
+                            if (value == -1) {
+                              widget.onTabSwitch?.call(0); // Switch to My tab
+                            } else {
+                              if (_sectionIndex == value &&
+                                  _scrollController.hasClients &&
+                                  _scrollController.offset > 0) {
+                                HapticFeedback.lightImpact();
+                                _scrollController.animateTo(
+                                  0.0,
+                                  duration: const Duration(milliseconds: 380),
+                                  curve: Curves.easeOutCubic,
+                                );
+                                return;
+                              }
+                              setState(() => _sectionIndex = value);
+                              widget.onTabSwitch?.call(value == 0 ? 1 : 2);
+                            }
+                          },
+                          onPersonalFmPlay: _startPersonalFm,
+                          isPersonalFmLoading:
+                              _isStartingPersonalFm || _isLoadingPersonalFmPreview,
+                          personalFmPreviewSong: _personalFmPreviewSongs.isEmpty
+                              ? null
+                              : _personalFmPreviewSongs.first,
+                          onAlbumTap: _openAlbumShop,
+                          api: widget.api,
+                          player: widget.player,
+                          updateVersion: _updateBannerDismissed
+                              ? null
+                              : _availableUpdate,
+                          onUpdateTap: () {
+                            _showUpdateDetails();
+                          },
+                          onUpdateClose: () {
+                            setState(() => _updateBannerDismissed = true);
+                          },
+                          onSettingsTap: _openSettings,
+                        ),
+                      ),
+                      SliverToBoxAdapter(
                         child: Column(
                           children: [
-                            _SongSection(
-                              title: '母带音质·精选',
-                              songs: data.daily.songs,
-                              onPlay: _playSong,
-                              isLiked: (song) => widget.auth.isLiked(song),
-                              onLikeTap: (song) => widget.auth.toggleLike(song),
-                              auth: widget.auth,
-                              player: widget.player,
-                              onViewArtist: _openArtist,
+                            _PersistentTabPane(
+                              visible: _sectionIndex == 0,
+                              child: Column(
+                                children: [
+                                  _SongSection(
+                                    title: '母带音质·精选',
+                                    songs: data.daily.songs,
+                                    onPlay: _playSong,
+                                    isLiked: (song) => widget.auth.isLiked(song),
+                                    onLikeTap: (song) => widget.auth.toggleLike(song),
+                                    auth: widget.auth,
+                                    player: widget.player,
+                                    onViewArtist: _openArtist,
+                                  ),
+                                  _PlaylistRail(
+                                    playlists: data.playlists,
+                                    onTap: _openPlaylist,
+                                  ),
+                                  if (data.topSongs.isNotEmpty)
+                                    _TopSongRail(
+                                      songs: data.topSongs,
+                                      onPlay: (song) => _playSong(song, data.topSongs),
+                                    ),
+                                  if (data.topAlbums.isNotEmpty)
+                                    _TopAlbumRail(
+                                      albums: data.topAlbums,
+                                      onTap: _openTopAlbum,
+                                    ),
+                                  if (data.recommendedSongCards.isNotEmpty)
+                                    _RecommendedSongCardRail(
+                                      cards: data.recommendedSongCards,
+                                      onTap: _openRecommendedSongCard,
+                                    ),
+                                ],
+                              ),
                             ),
-                            _PlaylistRail(
-                              playlists: data.playlists,
-                              onTap: _openPlaylist,
+                            _PersistentTabPane(
+                              visible: _sectionIndex == 1,
+                              child: _RadioSection(
+                                api: widget.api,
+                                player: widget.player,
+                              ),
                             ),
-                            if (data.topSongs.isNotEmpty)
-                              _TopSongRail(
-                                songs: data.topSongs,
-                                onPlay: (song) => _playSong(song, data.topSongs),
-                              ),
-                            if (data.topAlbums.isNotEmpty)
-                              _TopAlbumRail(
-                                albums: data.topAlbums,
-                                onTap: _openTopAlbum,
-                              ),
-                            if (data.recommendedSongCards.isNotEmpty)
-                              _RecommendedSongCardRail(
-                                cards: data.recommendedSongCards,
-                                onTap: _openRecommendedSongCard,
-                              ),
                           ],
                         ),
                       ),
-                      _PersistentTabPane(
-                        visible: _sectionIndex == 1,
-                        child: _RadioSection(
-                          api: widget.api,
-                          player: widget.player,
-                        ),
-                      ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 166)),
                     ],
-                  ),
+                  ],
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 166)),
-              ],
-            ],
+              );
+            },
           ),
-        );
-      },
+        ),
+        Positioned(
+          right: 20,
+          bottom: buttonBottom,
+          child: ScrollToTopButton(controller: _scrollController),
+        ),
+      ],
     );
   }
 }

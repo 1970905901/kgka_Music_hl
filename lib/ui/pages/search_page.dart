@@ -16,6 +16,7 @@ import '../widgets/now_playing_badge.dart';
 import '../widgets/song_action_sheets.dart';
 import '../widgets/toast.dart';
 import '../widgets/marquee_text.dart';
+import '../widgets/scroll_to_top_button.dart';
 import '../adaptive_layout.dart';
 import 'artist_detail_page.dart';
 import 'playlist_detail_page.dart';
@@ -46,6 +47,7 @@ enum _SearchType { song, album }
 class _SearchPageState extends State<SearchPage> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _resultsScrollController = ScrollController();
   Timer? _debounce;
 
   List<SearchHotCategory> _hotCategories = const [];
@@ -82,6 +84,7 @@ class _SearchPageState extends State<SearchPage> {
     _focusNode.removeListener(_onFocusChanged);
     _controller.dispose();
     _focusNode.dispose();
+    _resultsScrollController.dispose();
     super.dispose();
   }
 
@@ -138,6 +141,9 @@ class _SearchPageState extends State<SearchPage> {
     if (keywords.isEmpty) return;
     _focusNode.unfocus();
     _debounce?.cancel();
+    if (_resultsScrollController.hasClients) {
+      _resultsScrollController.jumpTo(0.0);
+    }
     setState(() {
       _loading = true;
       _suggestions = const [];
@@ -523,6 +529,11 @@ class _SearchPageState extends State<SearchPage> {
               bottom: MediaQuery.paddingOf(context).bottom + 10,
               child: MiniPlayer(player: widget.player, auth: widget.auth),
             ),
+            Positioned(
+              right: 20,
+              bottom: MediaQuery.paddingOf(context).bottom + 18,
+              child: ScrollToTopButton(controller: _resultsScrollController),
+            ),
           ],
         ),
       ),
@@ -556,7 +567,11 @@ class _SearchPageState extends State<SearchPage> {
       if (_type == _SearchType.album) {
         return _albums.isEmpty
             ? _EmptyResults(keyword: text)
-            : _AlbumResults(albums: _albums, onTap: _openAlbum);
+            : _AlbumResults(
+                albums: _albums,
+                onTap: _openAlbum,
+                controller: _resultsScrollController,
+              );
       }
       return _results.isEmpty
           ? _EmptyResults(keyword: text)
@@ -568,6 +583,7 @@ class _SearchPageState extends State<SearchPage> {
               auth: widget.auth,
               player: widget.player,
               onViewArtist: _openArtist,
+              controller: _resultsScrollController,
             );
     }
 
@@ -1184,15 +1200,21 @@ class _SuggestionList extends StatelessWidget {
 
 /// 专辑搜索结果列表。
 class _AlbumResults extends StatelessWidget {
-  const _AlbumResults({required this.albums, required this.onTap});
+  const _AlbumResults({
+    required this.albums,
+    required this.onTap,
+    this.controller,
+  });
 
   final List<ArtistAlbum> albums;
   final ValueChanged<ArtistAlbum> onTap;
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return ListView.separated(
+      controller: controller,
       padding: const EdgeInsets.fromLTRB(18, 4, 18, 160),
       itemCount: albums.length,
       separatorBuilder: (_, _) => const SizedBox(height: 2),
@@ -1265,6 +1287,7 @@ class _SearchResults extends StatelessWidget {
     required this.auth,
     required this.player,
     required this.onViewArtist,
+    this.controller,
   });
 
   final List<Song> songs;
@@ -1274,6 +1297,7 @@ class _SearchResults extends StatelessWidget {
   final AuthController auth;
   final PlayerController player;
   final void Function(Song song) onViewArtist;
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -1282,6 +1306,7 @@ class _SearchResults extends StatelessWidget {
       animation: auth,
       builder: (context, _) {
         return ListView.separated(
+          controller: controller,
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 160),
           itemCount: songs.length,
           separatorBuilder: (_, _) => const SizedBox(height: 2),

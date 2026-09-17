@@ -23,6 +23,7 @@ import '../widgets/song_action_sheets.dart';
 import '../widgets/toast.dart';
 import '../widgets/marquee_text.dart';
 import '../adaptive_layout.dart';
+import '../widgets/scroll_to_top_button.dart';
 import 'artist_detail_page.dart';
 
 /// 缓存中完整歌单歌曲列表的 key 后缀。
@@ -1051,13 +1052,27 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                           fontWeight: FontWeight.w600,
                         ),
                       )
-                    : Text(
-                        (_info ?? widget.playlist).title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                    : GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (_scrollController.hasClients &&
+                              _scrollController.offset > 0) {
+                            HapticFeedback.lightImpact();
+                            _scrollController.animateTo(
+                              0.0,
+                              duration: const Duration(milliseconds: 380),
+                              curve: Curves.easeOutCubic,
+                            );
+                          }
+                        },
+                        child: Text(
+                          (_info ?? widget.playlist).title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                 actions: [
@@ -1245,6 +1260,13 @@ class _PlaylistDetailPageState extends State<PlaylistDetailPage> {
                     onDownload: _selectedCount == 0 ? null : _downloadSelected,
                   )
                 : MiniPlayer(player: widget.player, auth: widget.auth),
+          ),
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            right: 20,
+            bottom: bottomInset + (_selectionMode ? 78 : 18),
+            child: ScrollToTopButton(controller: _scrollController),
           ),
         ],
       ),
