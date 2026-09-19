@@ -489,15 +489,16 @@ class Song {
           asString(json['singer_name']),
     );
     final artistName = artists.map((artist) => artist.name).join(' / ');
+    final displayName =
+        asString(json['FileName']) ??
+        asString(json['songname']) ??
+        asString(json['name']) ??
+        asString(json['audio_name']) ??
+        '未知歌曲';
 
     return Song(
       id: songId ?? hash,
-      title:
-          asString(json['FileName']) ??
-          asString(json['songname']) ??
-          asString(json['name']) ??
-          asString(json['audio_name']) ??
-          '未知歌曲',
+      title: stripArtistNamePrefix(displayName, artistName),
       artist: artistName.isNotEmpty
           ? artistName
           : asString(json['SingerName']) ??
@@ -984,6 +985,30 @@ class _SongDisplayName {
 
   final String? artist;
   final String? title;
+}
+
+/// 去掉酷狗歌曲名中「歌手 - 歌名」形式的歌手前缀，如「汪峰 - 春天里」→「春天里」。
+///
+/// 仅当前缀与已知歌手名一致时才剥离，避免误伤歌名本身含连字符的歌曲。
+/// 多个歌手时兼容「汪峰 / 李荣浩」「汪峰、李荣浩」等分隔写法。
+String stripArtistNamePrefix(String title, String artistName) {
+  if (artistName.isEmpty) {
+    return title;
+  }
+  final names = artistName.split(' / ').where((name) => name.isNotEmpty);
+  final candidates = [
+    RegExp.escape(artistName),
+    names.map(RegExp.escape).join(r'\s*[/、&_,，–—-]?\s*'),
+  ];
+  for (final candidate in candidates) {
+    final match = RegExp(
+      '^$candidate\\s*[-–—]\\s*',
+    ).firstMatch(title);
+    if (match != null && match.end < title.length) {
+      return title.substring(match.end);
+    }
+  }
+  return title;
 }
 
 _SongDisplayName _splitSongDisplayName(String? value) {
