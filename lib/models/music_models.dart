@@ -493,12 +493,18 @@ class Song {
         asString(json['FileName']) ??
         asString(json['songname']) ??
         asString(json['name']) ??
-        asString(json['audio_name']) ??
-        '未知歌曲';
+        asString(json['audio_name']);
+    // 酷狗返回的 OriSongName 是不带歌手的原始歌名，Suffix 为「(Live)」等版本后缀，
+    // 两者拼接即为完整歌名；字段缺失时再从 FileName 中剥离歌手前缀兜底。
+    final oriSongName = asString(json['OriSongName']);
+    final suffix = asString(json['Suffix']) ?? '';
+    final title = oriSongName != null && oriSongName.isNotEmpty
+        ? (suffix.isNotEmpty ? '$oriSongName $suffix' : oriSongName)
+        : stripArtistNamePrefix(displayName ?? '未知歌曲', artistName);
 
     return Song(
       id: songId ?? hash,
-      title: stripArtistNamePrefix(displayName, artistName),
+      title: title,
       artist: artistName.isNotEmpty
           ? artistName
           : asString(json['SingerName']) ??
@@ -987,7 +993,7 @@ class _SongDisplayName {
   final String? title;
 }
 
-/// 去掉酷狗歌曲名中「歌手 - 歌名」形式的歌手前缀，如「汪峰 - 春天里」→「春天里」。
+/// 兜底方案：从「歌手 - 歌名」格式的歌曲名中剥离歌手前缀。
 ///
 /// 仅当前缀与已知歌手名一致时才剥离，避免误伤歌名本身含连字符的歌曲。
 /// 多个歌手时兼容「汪峰 / 李荣浩」「汪峰、李荣浩」等分隔写法。
