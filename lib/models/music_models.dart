@@ -489,12 +489,24 @@ class Song {
           asString(json['singer_name']),
     );
     final artistName = artists.map((artist) => artist.name).join(' / ');
-    // 酷狗返回的 OriSongName 是不带歌手的原始歌名，Suffix 为「(Live)」等版本
-    // 后缀；后缀为空时直接使用歌名本身，避免出现多余空格。
-    var title = asString(json['OriSongName']);
+    // 首选：OriSongName 为不带歌手的原始歌名，Suffix 为「(Live)」等版本
+    // 后缀；后缀为空时直接使用歌名本身，避免多余空格。
+    // 兜底：最近播放等接口或非标内容（播客/电台）可能缺失上述字段，
+    // 此时回退到 FileName 等备选字段，并剥离「歌手 - 」形式的歌手前缀。
+    final oriSongName = asString(json['OriSongName']);
     final suffix = asString(json['Suffix']) ?? '';
-    if (title != null && suffix.isNotEmpty) {
-      title = '$title $suffix';
+    var title = oriSongName == null || oriSongName.isEmpty
+        ? null
+        : (suffix.isNotEmpty ? '$oriSongName $suffix' : oriSongName);
+    if (title == null) {
+      final displayName =
+          asString(json['FileName']) ??
+          asString(json['songname']) ??
+          asString(json['name']) ??
+          asString(json['audio_name']);
+      title = displayName == null
+          ? null
+          : stripArtistNamePrefix(displayName, artistName);
     }
 
     return Song(
@@ -986,6 +998,30 @@ class _SongDisplayName {
 
   final String? artist;
   final String? title;
+}
+
+/// 从「歌手 - 歌名」格式的歌曲名中剥离歌手前缀，如「汪峰 - 春天里」→「春天里」。
+///
+/// 仅当前缀与已知歌手名一致时才剥离，避免误伤歌名本身含连字符的歌曲。
+/// 多个歌手时兼容「汪峰 / 李荣浩」「汪峰、李荣浩」等分隔写法。
+String stripArtistNamePrefix(String title, String artistName) {
+  if (artistName.isEmpty) {
+    return title;
+  }
+  final names = artistName.split(' / ').where((name) => name.isNotEmpty);
+  final candidates = [
+    RegExp.escape(artistName),
+    names.map(RegExp.escape).join(r'\s*[/、&_,，–—-]?\s*'),
+  ];
+  for (final candidate in candidates) {
+    final match = RegExp(
+      '^$candidate\\s*[-–—]\\s*',
+    ).firstMatch(title);
+    if (match != null && match.end < title.length) {
+      return title.substring(match.end);
+    }
+  }
+  return title;
 }
 
 _SongDisplayName _splitSongDisplayName(String? value) {
