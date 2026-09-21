@@ -1436,35 +1436,60 @@ class _PosterPlayerPageState extends State<_PosterPlayerPage>
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 620;
+        // 极矮横屏（某些分辨率）下：唱片区弹性缩放，控制按钮永不被挤出屏幕
+        final tiny = constraints.maxHeight < 460;
         final artworkMaxWidth = compact ? 250.0 : 330.0;
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(28, 12, 28, 18),
           child: Column(
             children: [
-              const Spacer(),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: artworkMaxWidth),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Hero(
-                    tag: 'player_cover',
-                    child: Artwork(
-                    url: widget.song.coverUrl,
-                    size: double.infinity,
-                    borderRadius: 8,
-                  ),
+              if (tiny) ...[
+                // 高度不足时封面自动缩放，优先保证控制按钮完整可见
+                Expanded(
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: SizedBox.square(
+                        dimension: artworkMaxWidth,
+                        child: Hero(
+                          tag: 'player_cover',
+                          child: Artwork(
+                            url: widget.song.coverUrl,
+                            size: double.infinity,
+                            borderRadius: 8,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: compact ? 14 : 26),
-              _PosterLyricPreview(
-                player: widget.player,
-                isPageVisible: widget.isPageVisible,
-              ),
-              if (!compact) const SizedBox(height: 4),
-              _CommentEntry(player: widget.player, song: widget.song),
-              const Spacer(),
+              ] else ...[
+                // 常规竖屏/横屏：保持原有固定尺寸布局
+                const Spacer(),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: artworkMaxWidth),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Hero(
+                      tag: 'player_cover',
+                      child: Artwork(
+                        url: widget.song.coverUrl,
+                        size: double.infinity,
+                        borderRadius: 8,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: compact ? 14 : 26),
+                _PosterLyricPreview(
+                  player: widget.player,
+                  isPageVisible: widget.isPageVisible,
+                ),
+                if (!compact) const SizedBox(height: 4),
+                _CommentEntry(player: widget.player, song: widget.song),
+                const Spacer(),
+              ],
               _Progress(player: widget.player, bright: true),
               const SizedBox(height: 10),
               _Controls(
