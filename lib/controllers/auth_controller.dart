@@ -55,12 +55,21 @@ class AuthController extends ChangeNotifier {
         : playlist.id;
     try {
       if (liked) {
-        await _api.removeFromPlaylist(targetListId, song);
+        // 首页、搜索页和播放器中的 Song.id 通常是 mixsongid/songid，
+        // 而 /playlist/tracks/del 要求的是收藏歌单内的 fileid。
+        // 先按 hash 找到歌单返回的歌曲对象，避免把错误的 ID 当成 fileid。
+        final playlistSong = await _resolveLikedSongForRemoval(
+          playlist,
+          targetListId,
+          song,
+        );
+        await _api.removeFromPlaylist(targetListId, playlistSong);
         _likedHashes.remove(song.hash);
       } else {
         await _api.addToPlaylist(targetListId, song);
         _likedHashes.add(song.hash);
       }
+      await _invalidatePlaylistDetailCache(playlist);
       await _persistLikedHashes();
       notifyListeners();
     } catch (error) {
@@ -71,6 +80,44 @@ class AuthController extends ChangeNotifier {
         _likedHashes.remove(song.hash);
       }
       rethrow;
+    }
+  }
+
+  Future<Song> _resolveLikedSongForRemoval(
+    PlaylistSummary playlist,
+    String targetListId,
+    Song sourceSong,
+  ) async {
+    final sourceHash = sourceSong.hash.trim().toLowerCase();
+    final ids = <String>{playlist.id, targetListId}
+      ..removeWhere((id) => id.isEmpty);
+
+    for (final id in ids) {
+      try {
+        final songs = await _api.playlistSongs(id, fetchAll: true);
+        for (final song in songs) {
+          final sameHash = sourceHash.isNotEmpty &&
+              song.hash.trim().toLowerCase() == sourceHash;
+          final sameId = sourceHash.isEmpty &&
+              (song.id == sourceSong.id || song.albumAudioId == sourceSong.id);
+          if ((sameHash || sameId) && song.id.isNotEmpty) {
+            return song;
+          }
+        }
+      } catch (_) {
+        // 尝试另一个 playlist id；全部失败后再向上抛出明确错误。
+      }
+    }
+
+    throw StateError('未找到收藏歌单中的歌曲，请刷新收藏列表后重试');
+  }
+
+  Future<void> _invalidatePlaylistDetailCache(PlaylistSummary playlist) async {
+    final ids = <String>{playlist.id, playlist.listId ?? ''}
+      ..removeWhere((id) => id.isEmpty);
+    for (final id in ids) {
+      await _cacheService.remove('cache_playlist_$id');
+      await _cacheService.remove('cache_playlist_${id}_full');
     }
   }
 
@@ -164,6 +211,7 @@ class AuthController extends ChangeNotifier {
     if (listId == null) return;
     await _run(() async {
       await _api.addToPlaylist(listId, song);
+      await _invalidatePlaylistDetailCache(playlist);
       playlists = await _loadUserPlaylistsWithCache();
       if (playlist.isLikedPlaylist) {
         _likedHashes.add(song.hash);
@@ -181,6 +229,7 @@ class AuthController extends ChangeNotifier {
     if (listId == null) return;
     await _run(() async {
       await _api.removeFromPlaylist(listId, song);
+      await _invalidatePlaylistDetailCache(target);
       playlists = await _loadUserPlaylistsWithCache();
       if (target.isLikedPlaylist) {
         _likedHashes.remove(song.hash);
