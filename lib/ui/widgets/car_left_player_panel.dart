@@ -179,10 +179,16 @@ class CarLeftPlayerPanel extends StatelessWidget {
                   ),
                   SizedBox(height: titleGap),
                   // Progress Bar
-                  Builder(
-                    builder: (context) {
+                  // 高频 position 独立订阅，不随进度全量重建车载面板；
+                  // 联合 player：暂停期间新歌 duration 解析完成也能刷新。
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      player,
+                      player.positionNotifier,
+                    ]),
+                    builder: (context, _) {
+                      final position = player.positionNotifier.value;
                       final duration = player.duration;
-                      final position = player.smoothPosition;
                       final max = duration.inMilliseconds <= 0
                           ? 1.0
                           : duration.inMilliseconds.toDouble();
